@@ -1,0 +1,31 @@
+{
+  "name": "payback",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc && vite build",
+    "preview": "vite preview",
+    "tsc": "tsc",
+    "prettier": "npx prettier src",
+    "prettier:write": "npm run prettier -- --write",
+    "prettier:check": "npm run prettier -- --check"
+  },
+  "devDependencies": {
+    "@trivago/prettier-plugin-sort-imports": "^4.3.0",
+    "prettier": "3.3.3",
+    "typescript": "^5.5.3",
+    "vite": "^5.4.8",
+    "vite-plugin-mkcert": "^1.17.6",
+    "vite-plugin-node-polyfills": "^0.22.0",
+    "vite-plugin-wasm": "^3.3.0"
+  },
+  "dependencies": {
+    "@types/node": "^22.7.8",
+    "@vulpemventures/secp256k1-zkp": "^3.2.1",
+    "bitcoinjs-lib": "^7.0.0-rc.0",
+    "liquidjs-lib": "^6.0.2-liquid.36",
+    "tiny-secp256k1": "^2.2.3"
+  }
+}
