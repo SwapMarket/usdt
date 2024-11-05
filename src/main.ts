@@ -9,7 +9,6 @@ import {
     OwnedInput,
     Pset,
     Transaction,
-    TxOutput,
     Updater,
     UpdaterInput,
     UpdaterOutput,
@@ -66,7 +65,8 @@ let exchangeRate: number | null = null;
 let hasError = false;
 let balanceBTC: number = 0;
 let balanceTOKEN: number = 0;
-let success: boolean = false;
+let withdrawalPending: boolean = false;
+let withdrawalComplete: boolean = false;
 let confi: confidential.Confidential;
 let secp: Secp256k1ZKP;
 let zkpValidator: ZKPValidator;
@@ -74,6 +74,8 @@ let mainOutput = 0; // used to show the unblinded tx in explorer
 let mainNonce: Buffer; // used to show the unblinded tx in explorer
 let confDepositAddress = "";
 let explDepositAddress = "";
+let withdrawalAddress = "";
+let withdrawalStatus= "Awaiting deposit...";
 let interval: NodeJS.Timeout;
 
 const ERROR_MESSAGE = `
@@ -104,7 +106,7 @@ secp = await zkp();
 confi = new confidential.Confidential(secp);
 zkpValidator = new ZKPValidator(secp);
 
-const HTML_BODY = `
+const HTML_BODY = () => { return `
     <div>
         <p>* Testnet *</p>
         <h1>Liquid ${TITLE_TICKER} Swaps</h1>   
@@ -120,20 +122,21 @@ const HTML_BODY = `
             size="110em"
             id="return-address"
             placeholder="Paste your withdrawal address here"
+            value="${withdrawalAddress}"
         />
-        <div id="hiddenContent" style="display:none">
+        <div id="hiddenContent" style="display:${withdrawalAddress?'block':'none'}">
             <p>Step 2. Fund this address with Liquid BTC or ${TOKEN_NAME}:</p>
-            <p id="depositAddress"> Deriving...</p>
+            <p id="depositAddress">${confDepositAddress?confDepositAddress:" Deriving..."}</p>
             <p>*** Keep this page open and do not refresh ***</p>
-            <p id="status">Awaiting deposit...</p>
+            <p id="status">${withdrawalStatus}</p>
         </div>
         <p id="transaction"></p>
-    </div>`;
+    </div>`};
 
 // Render page
 document.querySelector<HTMLDivElement>("#app")!.innerHTML = hasError
     ? ERROR_MESSAGE
-    : HTML_BODY;
+    : HTML_BODY();
 
 // add listener to the input field
 if (!hasError) {
@@ -149,13 +152,13 @@ if (!hasError) {
                 try {
                     if (address.isConfidential(addr)) {
                         contentToToggle.style.display = "block";
-                        // invalid withdrawal address
+                        withdrawalAddress = addr;
                         setInnerHTML("transaction", ``);
                         showDepositAddress();
                         return;
                     }
-                } catch (e) {
-                    console.error(e);
+                } catch (error) {
+                    console.error(error);
                 }
 
                 // invalid withdrawal address
@@ -188,7 +191,7 @@ if (!hasError) {
 // the wallet UTXOs by the time his deposit arrives
 function getDepositAddress() {
     getNewKeys("deposit").then((keys) => {
-        // set global variable        
+        // set global variable
         depositKeys = keys;
 
         // Derive confidential deposit address
@@ -244,9 +247,7 @@ function updateExchangeRate(price: number | null) {
         const appElement = document.querySelector<HTMLDivElement>("#app");
         if (appElement && appElement.innerHTML == ERROR_MESSAGE) {
             // Update the HTML content to display as normal
-            appElement.innerHTML = HTML_BODY;
-            // refresh balance
-            
+            appElement.innerHTML = HTML_BODY();
         }
     }
 
@@ -264,28 +265,25 @@ async function calculateBalances() {
     if (!walletUTXOs) {
         return;
     }
-    
+
     let balBTC = 0;
     let balTOKEN = 0;
 
     for (let i = 0; i < walletUTXOs.length; i++) {
-        const { value, token, witness } = await fetchValue(walletUTXOs[i]);
-        if (value > 0) {
-            walletUTXOs[i].value = value;
-            walletUTXOs[i].token = token;
-            walletUTXOs[i].witness = witness;
-            if (token == "BTC") {
-                balBTC += value;
+        await fetchValue(walletUTXOs[i]);
+        if (walletUTXOs[i].value > 0) {
+            if (walletUTXOs[i].token == "BTC") {
+                balBTC += walletUTXOs[i].value;
             } else {
-                balTOKEN += value;
+                balTOKEN += walletUTXOs[i].value;
             }
         }
     }
 
     // update global vars
     balanceBTC = balBTC;
-    balanceBTC = balTOKEN;
-    
+    balanceTOKEN = balTOKEN;
+
     let element = document.getElementById("maxBTC");
     if (element) {
         // 1% cushion and round to 1k sats
@@ -312,10 +310,9 @@ async function calculateBalances() {
     }
 }
 
-async function unblindUTXO(utxo: UTXO): Promise<{
-    unblindedOutput: confidential.UnblindOutputResult;
-    witness: TxOutput;
-}> {
+async function unblindUTXO(
+    utxo: UTXO,
+): Promise<confidential.UnblindOutputResult> {
     // get raw hex
     const response = await fetch(`${ESPLORA_API_URL}/tx/${utxo.TxId}/hex`);
     const txHex = await response.text();
@@ -326,15 +323,14 @@ async function unblindUTXO(utxo: UTXO): Promise<{
         tx.outs[utxo.Vout],
         Buffer.from(utxo.BlindingKey, "hex"),
     );
-    const witness = tx.outs[utxo.Vout];
+    // add witness
+    utxo.witness = tx.outs[utxo.Vout];
 
-    return { unblindedOutput, witness };
+    return unblindedOutput;
 }
 
-async function fetchValue(
-    utxo: UTXO,
-): Promise<{ value: number; token: string; witness: TxOutput }> {
-    const { unblindedOutput, witness } = await unblindUTXO(utxo);
+async function fetchValue(utxo: UTXO) {
+    const unblindedOutput = await unblindUTXO(utxo);
     const assetId = AssetHash.fromBytes(unblindedOutput.asset).hex;
     let token = "";
     let value = 0;
@@ -344,14 +340,21 @@ async function fetchValue(
         if (ASSET_ID.get(key) == assetId) {
             token = key;
             value = Number(unblindedOutput.value);
+            break;
         }
     }
 
-    return { value, token, witness };
+    // update UTXO object
+    utxo.token = token;
+    utxo.value = value;
 }
 
 // Polling function to check for deposit arrival
 async function pollForTransactions() {
+    if (withdrawalPending || withdrawalComplete) {
+        return;
+    }
+
     try {
         const response = await fetch(
             `${ESPLORA_API_URL}/address/${confDepositAddress}/txs`,
@@ -362,212 +365,191 @@ async function pollForTransactions() {
             const depositTx = transactions[0];
 
             if (depositTx.status.confirmed) {
-                // If not withdrawn already
-                if (!success) {
-                    // find output number
-                    let vout = 0;
-                    for (const output of depositTx.vout) {
-                        if (
-                            output.scriptpubkey_address === explDepositAddress
-                        ) {
-                            break;
-                        }
-                        vout++;
+                // find output number
+                let vout = 0;
+                for (const output of depositTx.vout) {
+                    if (output.scriptpubkey_address === explDepositAddress) {
+                        break;
+                    }
+                    vout++;
+                }
+
+                // fetch asset and value
+                depositKeys.TxId = depositTx.txid;
+                depositKeys.Vout = vout;
+                await fetchValue(depositKeys);
+
+                const token = depositKeys.token;
+                const value = depositKeys.value; 
+                
+                if (depositKeys.value > 0) {
+                    const senderAddress =
+                        depositTx.vin[0].prevout.scriptpubkey_address;
+                    const formattedValue = formatValue(fromSats(value), token);
+
+                    setStatus(`Received ${formattedValue} ${depositKeys.token} from ${senderAddress}`);
+
+                    const addressElement = document.getElementById(
+                        "return-address",
+                    ) as HTMLInputElement | null;
+
+                    if (addressElement && !withdrawalAddress) {
+                        withdrawalAddress = addressElement.value;
                     }
 
-                    // fetch asset and value
-                    depositKeys.TxId = depositTx.txid;
-                    depositKeys.Vout = vout;
-                    const { value, token, witness } =
-                        await fetchValue(depositKeys);
-
-                    // save witness
-                    depositKeys.witness = witness;
-
-                    if (value > 0) {
-                        const senderAddress =
-                            depositTx.vin[0].prevout.scriptpubkey_address;
-                        const formattedValue = formatValue(
-                            fromSats(value),
-                            token,
-                        );
-
+                    if (
+                        !withdrawalAddress ||
+                        !address.isConfidential(withdrawalAddress) ||
+                        withdrawalAddress == confDepositAddress
+                    ) {
+                        // invalid withdrawal address
                         setInnerHTML(
-                            "status",
-                            `Received ${formattedValue} ${token} from ${senderAddress}`,
+                            "transaction",
+                            `Please provide confidential withdrawal address!`,
                         );
+                        return;
+                    }
 
-                        let withdrawalAddress: string | undefined;
-                        const addressElement = document.getElementById(
-                            "return-address",
-                        ) as HTMLInputElement | null;
+                    withdrawalPending = true;
 
-                        if (addressElement) {
-                            withdrawalAddress = addressElement.value;
-                        }
+                    // amounts to be sent back
+                    let withdrawBTC = 0; // in sats
+                    let withdrawTOKEN = 0; // in sats
 
-                        if (
-                            !withdrawalAddress ||
-                            !address.isConfidential(withdrawalAddress) ||
-                            withdrawalAddress == confDepositAddress
-                        ) {
-                            // invalid withdrawal address
-                            setInnerHTML(
-                                "transaction",
-                                `Please provide confidential withdrawal address!`,
-                            );
-                            return;
-                        }
-
-                        // amounts to be sent back
-                        let withdrawBTC = 0; // in sats
-                        let withdrawTOKEN = 0; // in sats
-
-                        if (!exchangeRate) {
-                            // Exception: exchangeRate not set
-                            setInnerHTML(
-                                "status",
-                                `<br><br>ERROR! Exchange rate is not available, preceeding with refund.`,
-                                true,
-                            );
-                            if (token == "BTC") {
-                                withdrawBTC = value;
-                            } else {
-                                withdrawTOKEN = value;
-                            }
-                        } else {
-                            // Fix rate and compute withdrawal
-                            const fixedRate = exchangeRate;
-
-                            // we sold BTC
-                            let feeDirection = "+";
-                            let bumpedRate = Math.round(
-                                exchangeRate * (1 + FEE_RATE / 100),
-                            );
-                            withdrawBTC =
-                                Math.floor(value / bumpedRate) - FEE_BASE;
-                            withdrawTOKEN = 0;
-
-                            if (token == "BTC") {
-                                // we bough BTC
-                                feeDirection = "-";
-                                bumpedRate = Math.round(
-                                    exchangeRate * (1 - FEE_RATE / 100),
-                                );
-                                withdrawTOKEN = Math.floor(
-                                    (value - FEE_BASE) * bumpedRate,
-                                );
-                                withdrawBTC = 0;
-                            }
-
-                            setInnerHTML(
-                                "status",
-                                `<br><br>Exchange rate fixed at ${formatValue(fixedRate, "USD")} ${feeDirection} ${formatValue(FEE_RATE, "")}% = ${formatValue(bumpedRate, "USD")}`,
-                                true,
-                            );
-
-                            // verify reserves
-                            const reserveBTC =
-                                balanceBTC - FEE_BASE * 2 - DUST_BTC * 2;
-
-                            if (withdrawTOKEN > balanceTOKEN) {
-                                // wants to withdraw too much TOKEN, refund some BTC
-                                withdrawBTC = Math.min(
-                                    reserveBTC,
-                                    Math.floor(
-                                        (withdrawTOKEN - balanceTOKEN) /
-                                            bumpedRate,
-                                    ),
-                                );
-                                withdrawTOKEN = balanceTOKEN;
-                                setInnerHTML(
-                                    "status",
-                                    `<br><br>Not enough ${TOKEN_NAME} balance. Processing refund of BTC...`,
-                                    true,
-                                );
-                            }
-
-                            if (withdrawBTC > reserveBTC) {
-                                // wants to withdraw too much BTC, refund some TOKEN
-                                withdrawTOKEN = Math.min(
-                                    balanceTOKEN,
-                                    Math.floor(
-                                        (withdrawBTC - reserveBTC) * bumpedRate,
-                                    ),
-                                );
-                                withdrawBTC = reserveBTC;
-                                setInnerHTML(
-                                    "status",
-                                    `<br><br>Not enough BTC balance. Processing refund of ${TOKEN_NAME}...`,
-                                    true,
-                                );
-                            }
-                        }
-
-                        // add new UTXO to the list
-                        if (
-                            walletUTXOs[walletUTXOs.length - 1].TxId !=
-                            depositTx.txid
-                        ) {
-                            depositKeys.token = token;
-                            depositKeys.value = value;
-                            walletUTXOs.push(depositKeys);
-
-                            // refresh balances and unblind UTXOs
-                            await calculateBalances();
-                        }
-
-                        let textAmount = "";
-
-                        if (withdrawTOKEN > 0) {
-                            textAmount =
-                                formatValue(fromSats(withdrawTOKEN), "USD") +
-                                " " +
-                                TOKEN_NAME;
-                        }
-
-                        if (withdrawBTC > 0) {
-                            const t =
-                                formatValue(fromSats(withdrawBTC), "BTC") +
-                                " BTC";
-                            if (textAmount) {
-                                textAmount += " + " + t;
-                            } else {
-                                textAmount = t;
-                            }
-                        }
-
-                        setInnerHTML(
-                            "status",
-                            `<br><br>Sending ${textAmount} to ${address.fromConfidential(withdrawalAddress).unconfidentialAddress}`,
+                    if (!exchangeRate) {
+                        // Exception: exchangeRate not set
+                        setStatus(
+                            `ERROR! Exchange rate is not available, preceeding with refund.`,
                             true,
                         );
-                        setInnerHTML("transaction", ``);
-
-                        success = await processWithdrawal(
-                            withdrawalAddress,
-                            withdrawBTC,
-                            withdrawTOKEN,
-                        );
-                        if (success) {
-                            clearInterval(interval);
+                        if (token == "BTC") {
+                            withdrawBTC = value;
                         } else {
-                            // refresh wallet UTXOs to try again
-                            setInnerHTML(
-                                "transaction",
-                                `<br><br>Refreshing wallet balances...`,
-                                true,
-                            );
-                            walletUTXOs = await getUTXOs();
-                            await calculateBalances();
+                            withdrawTOKEN = value;
                         }
                     } else {
-                        setInnerHTML("status", `Ineligible token ignored...`);
+                        // Fix rate and compute withdrawal
+                        const fixedRate = exchangeRate;
+
+                        // we sold BTC
+                        let feeDirection = "+";
+                        let bumpedRate = Math.round(
+                            exchangeRate * (1 + FEE_RATE / 100),
+                        );
+                        withdrawBTC = Math.floor(value / bumpedRate) - FEE_BASE;
+                        withdrawTOKEN = 0;
+
+                        if (token == "BTC") {
+                            // we bough BTC
+                            feeDirection = "-";
+                            bumpedRate = Math.round(
+                                exchangeRate * (1 - FEE_RATE / 100),
+                            );
+                            withdrawTOKEN = Math.floor(
+                                (value - FEE_BASE) * bumpedRate,
+                            );
+                            withdrawBTC = 0;
+                        }
+
+                        setStatus(
+                            `Exchange rate fixed at ${formatValue(fixedRate, "USD")} ${feeDirection} ${formatValue(FEE_RATE, "")}% = ${formatValue(bumpedRate, "USD")}`,
+                            true,
+                        );
+
+                        // verify reserves
+                        const reserveBTC =
+                            balanceBTC - FEE_BASE * 2 - DUST_BTC * 2;
+
+                        if (withdrawTOKEN > balanceTOKEN) {
+                            // wants to withdraw too much TOKEN, refund some BTC
+                            withdrawBTC = Math.min(
+                                reserveBTC,
+                                Math.floor(
+                                    (withdrawTOKEN - balanceTOKEN) / bumpedRate,
+                                ),
+                            );
+                            withdrawTOKEN = balanceTOKEN;
+                            setStatus(
+                                `Not enough ${TOKEN_NAME} balance. Processing refund of BTC...`,
+                                true,
+                            );
+                        }
+
+                        if (withdrawBTC > reserveBTC) {
+                            // wants to withdraw too much BTC, refund some TOKEN
+                            withdrawTOKEN = Math.min(
+                                balanceTOKEN,
+                                Math.floor(
+                                    (withdrawBTC - reserveBTC) * bumpedRate,
+                                ),
+                            );
+                            withdrawBTC = reserveBTC;
+                            setStatus(
+                                `Not enough BTC balance. Processing refund of ${TOKEN_NAME}...`,
+                                true,
+                            );
+                        }
                     }
+
+                    // add new UTXO to the list
+                    if (
+                        walletUTXOs[walletUTXOs.length - 1].TxId !=
+                        depositTx.txid
+                    ) {
+                        depositKeys.token = token;
+                        depositKeys.value = value;
+                        walletUTXOs.push(depositKeys);
+
+                        // refresh balances and unblind UTXOs
+                        await calculateBalances();
+                    }
+
+                    let textAmount = "";
+
+                    if (withdrawTOKEN > 0) {
+                        textAmount =
+                            formatValue(fromSats(withdrawTOKEN), "USD") +
+                            " " +
+                            TOKEN_NAME;
+                    }
+
+                    if (withdrawBTC > 0) {
+                        const t =
+                            formatValue(fromSats(withdrawBTC), "BTC") + " BTC";
+                        if (textAmount) {
+                            textAmount += " + " + t;
+                        } else {
+                            textAmount = t;
+                        }
+                    }
+
+                    setStatus(`Sending ${textAmount} to ${address.fromConfidential(withdrawalAddress).unconfidentialAddress}`, true);
+                    setInnerHTML("transaction", ``);
+
+                    const success = await processWithdrawal(
+                        withdrawalAddress,
+                        withdrawBTC,
+                        withdrawTOKEN,
+                    );
+
+                    if (success) {
+                        withdrawalComplete = true;
+                        clearInterval(interval);
+                    } else {
+                        // refresh wallet UTXOs to try again
+                        setInnerHTML(
+                            "transaction",
+                            `<br><br>Refreshing wallet balances...`,
+                            true,
+                        );
+                        walletUTXOs = await getUTXOs();
+                        await calculateBalances();
+                    }
+                } else {
+                    setStatus(`Ineligible token ignored...`);
                 }
             } else {
-                setInnerHTML(
-                    "status",
+                setStatus(
                     `Deposit is in mempool, awaiting confirmation...`,
                 );
             }
@@ -575,6 +557,8 @@ async function pollForTransactions() {
     } catch (error) {
         console.error("Error:", error);
     }
+
+    withdrawalPending = false;
 }
 
 // Process the withdrawal
@@ -589,7 +573,7 @@ async function processWithdrawal(
 
     // Generate return addresses for change
     const btcChangeAddress = await getNewAddress(
-        "btc_change",
+        "BTC_change",
         confDepositAddress,
     );
 
@@ -636,22 +620,31 @@ async function processWithdrawal(
 
     if (isTxid(result)) {
         // unblind the main output to show the link
-        const tx = Transaction.fromHex(txHex);
-        const out = tx.outs[mainOutput];
-        const unblindedOutput = confi.unblindOutputWithNonce(out, mainNonce);
+        let blinded = "";
 
-        const value = unblindedOutput.value.toString();
-        const asset = reverseHex(unblindedOutput.asset.toString("hex"));
-        const valueBlinder = reverseHex(
-            unblindedOutput.valueBlindingFactor.toString("hex"),
-        );
-        const assetBlinder = reverseHex(
-            unblindedOutput.assetBlindingFactor.toString("hex"),
-        );
+        try {
+            const tx = Transaction.fromHex(txHex);
+            const out = tx.outs[mainOutput];
+            const unblindedOutput = confi.unblindOutputWithNonce(
+                out,
+                mainNonce,
+            );
+            const value = unblindedOutput.value.toString();
+            const asset = reverseHex(unblindedOutput.asset.toString("hex"));
+            const valueBlinder = reverseHex(
+                unblindedOutput.valueBlindingFactor.toString("hex"),
+            );
+            const assetBlinder = reverseHex(
+                unblindedOutput.assetBlindingFactor.toString("hex"),
+            );
+            blinded = `#blinded=${value},${asset},${valueBlinder},${assetBlinder}`;
+        } catch (error) {
+            console.error("Failed to unblind output:", error);
+        }
 
         setInnerHTML(
             "transaction",
-            `TxId: <a href="${ESPLORA_URL}/tx/${result}#blinded=${value},${asset},${valueBlinder},${assetBlinder}" target="_blank">${result}</a>`,
+            `TxId: <a href="${ESPLORA_URL}/tx/${result}${blinded}" target="_blank">${result}</a>`,
         );
 
         setInnerHTML("transaction", `<br><br><a href="/">New Swap</a>`, true);
@@ -685,6 +678,9 @@ async function prepareTransaction(
 
     // Add the selected UTXOs as inputs
     for (const utxo of selectedUTXOs) {
+        // this only works with p2wph
+        // if receive p2sh (change from SideSwap deposit)
+        //
         ins.push({
             txid: utxo.TxId,
             txIndex: utxo.Vout,
@@ -707,7 +703,7 @@ async function prepareTransaction(
             blindingPublicKey: address.fromConfidential(toAddress).blindingKey,
         });
 
-        // Add the TOKEN change output 
+        // Add the TOKEN change output
         if (totalTOKEN - satsTOKEN > DUST_TOKEN) {
             outs.push({
                 asset: ASSET_ID.get(TOKEN)!,
@@ -774,10 +770,9 @@ async function prepareTransaction(
     let ownedInputs: OwnedInput[] = [];
 
     for (let i = 0; i < numBlinders; i++) {
-        const { unblindedOutput, witness } = await unblindUTXO(
+        const unblindedOutput = await unblindUTXO(
             selectedUTXOs[i],
         );
-        selectedUTXOs[i].witness = witness;
 
         ownedInputs.push({
             asset: unblindedOutput.asset,
@@ -935,5 +930,16 @@ async function broadcastTransaction(txHex: string): Promise<string> {
 
     const result = await response.text();
 
+    console.log("Broadcast result:", result);
+
     return result;
+}
+
+function setStatus(status: string, append: boolean = false) {
+    withdrawalStatus = status;
+    setInnerHTML(
+        "status",
+        (append?"<br><br>":"") + status,
+        append
+    );
 }

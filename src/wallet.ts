@@ -1,4 +1,4 @@
-import { TxOutput } from "liquidjs-lib";
+import { Transaction, TxOutput } from "liquidjs-lib";
 
 const WALLET_API_URL = "http://localhost:1974";
 
@@ -10,6 +10,7 @@ export declare type UTXO = {
     value?: number; // Token or BTC amount
     token?: string; // TOKEN_TICKER or 'BTC'
     witness?: TxOutput; // fetched during unblind
+    nonWitness?: Transaction; // for p2sh
 };
 
 // returns private and blinding keys for unspent outputs
