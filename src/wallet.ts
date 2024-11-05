@@ -1,7 +1,6 @@
 import { TxOutput } from "liquidjs-lib";
 
 const WALLET_API_URL = "http://localhost:1974";
-const TIMEOUT = 3000;
 
 export declare type UTXO = {
     TxId?: string;
@@ -17,14 +16,13 @@ export declare type UTXO = {
 export async function getUTXOs(): Promise<UTXO[] | null> {
     try {
         const response = await fetch(`${WALLET_API_URL}/utxos`, {
-            signal: AbortSignal.timeout(TIMEOUT),
+            signal: AbortSignal.timeout(20000),
         });
         if (!response.ok) {
             return null;
         }
         return await response.json();
     } catch (error) {
-        console.error("Error fetching UTXOs:", error);
         return null;
     }
 }
@@ -33,30 +31,31 @@ export async function getUTXOs(): Promise<UTXO[] | null> {
 export async function getNewKeys(label: string): Promise<UTXO | null> {
     try {
         const response = await fetch(`${WALLET_API_URL}/keys?l=${label}`, {
-            signal: AbortSignal.timeout(TIMEOUT),
+            signal: AbortSignal.timeout(3000),
         });
         if (!response.ok) {
             return null;
         }
         return await response.json();
     } catch (error) {
-        console.error("Error fetching new keys:", error);
         return null;
     }
 }
 
 // returns a new bech32m address
-export async function getNewAddress(label: string): Promise<string> {
+export async function getNewAddress(
+    label: string,
+    fallback: string,
+): Promise<string> {
     try {
         const response = await fetch(`${WALLET_API_URL}/address?l=${label}`, {
-            signal: AbortSignal.timeout(TIMEOUT),
+            signal: AbortSignal.timeout(3000),
         });
         if (!response.ok) {
-            return null;
+            return fallback;
         }
         return await response.text();
     } catch (error) {
-        console.error("Error fetching new address:", error);
-        return null;
+        return fallback;
     }
 }

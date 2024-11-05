@@ -7,6 +7,11 @@
     "dev": "vite",
     "build": "tsc && vite build",
     "preview": "vite preview",
+    "compile": "npm run compile:go && npm run compile:typescript",
+    "compile:release": "npm run compile:go:release && npm run compile:typescript",
+    "compile:typescript": "tsc",
+    "compile:go": "cd go-wasm && GOOS=js GOARCH=wasm go build -gcflags 'all=-N -l' -o ../public/wasm/main.wasm main.go",
+    "compile:go:release": "cd go-wasm && GOOS=js GOARCH=wasm go build -o ../public/wasm/main.wasm main.go",
     "tsc": "tsc",
     "prettier": "npx prettier src",
     "prettier:write": "npm run prettier -- --write",
@@ -24,6 +29,8 @@
   "dependencies": {
     "@types/node": "^22.7.8",
     "@vulpemventures/secp256k1-zkp": "^3.2.1",
+    "@wasmer/wasi": "^1.2.2",
+    "@wasmer/wasmfs": "^0.12.0",
     "bitcoinjs-lib": "^7.0.0-rc.0",
     "liquidjs-lib": "^6.0.2-liquid.36",
     "tiny-secp256k1": "^2.2.3"

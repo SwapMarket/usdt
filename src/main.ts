@@ -34,8 +34,12 @@ import {
     scrambleArray,
     setInnerHTML,
 } from "./utils";
-import { getNewAddress, getNewKeys, getUTXOs, UTXO } from "./wallet";
+import { UTXO, getNewAddress, getNewKeys, getUTXOs } from "./wallet";
 
+// wait 10 seconds to connect debugger
+//await new Promise((f) => setTimeout(f, 10000));
+
+// constants
 const NETWORK = networks.testnet;
 const ESPLORA_URL = "https://blockstream.info/liquidtestnet";
 const ESPLORA_API_URL = ESPLORA_URL + "/api";
@@ -43,7 +47,7 @@ const DUST_BTC = 495; // mimimum possible UTXO
 const DUST_TOKEN = 2_000_000; // less than tx fee, 20 BTC sats at 70k roughly
 const FEE_BASE = 40; // initial guess for onchain fee
 const FEE_RATE = 0.5; // pct markup to mid price
-const TOKEN_NAME = "PEGx USDt";
+const TOKEN_NAME = "PEGx USDt Testnet";
 const TOKEN = "USD";
 const ASSET_ID = new Map<string, string>([
     ["BTC", NETWORK.assetHash],
@@ -51,10 +55,32 @@ const ASSET_ID = new Map<string, string>([
 ]);
 const BITFINEX_TICKER = "tBTCUST"; // BTC/USDT ticker symbol for Bitfinex
 const TITLE_TICKER = "BTC/USDt"; // to update window.title
+const MAX_TRADE_SATS = 10_000_000;
 
 // fetched from a masked API
 let walletUTXOs: UTXO[] | null = null;
 let depositKeys: UTXO | null = null;
+
+// Global variables
+let exchangeRate: number | null = null;
+let hasError = false;
+let balanceBTC: number = 0;
+let balanceTOKEN: number = 0;
+let success: boolean = false;
+let confi: confidential.Confidential;
+let secp: Secp256k1ZKP;
+let zkpValidator: ZKPValidator;
+let mainOutput = 0; // used to show the unblinded tx in explorer
+let mainNonce: Buffer; // used to show the unblinded tx in explorer
+let confDepositAddress = "";
+let explDepositAddress = "";
+let interval: NodeJS.Timeout;
+
+const ERROR_MESSAGE = `
+    <div style="text-align: center;">
+        <h2>Error connecting to the exchange</h2>
+        <p>We're experiencing issues loading the necessary information. Please try again later.</p>
+    </div>`;
 
 // Initialize the Bitfinex WebSocket with callback to update exchangeRate
 const bitfinexWS = new BitfinexWS(BITFINEX_TICKER, updateExchangeRate);
@@ -62,106 +88,152 @@ const bitfinexWS = new BitfinexWS(BITFINEX_TICKER, updateExchangeRate);
 try {
     // Attempt to connect and wait until connection is established
     await bitfinexWS.connect();
-    console.log("Connected and subscribed to the order book.");
 
-    // include private keys for blinding and signing the withdrawal
-    walletUTXOs = await getUTXOs();
-
-    // used to genetate the confidential deposit address
-    // will be added to walletUTXOs after funding, so private keys may be needed for signing
-    depositKeys = await getNewKeys("deposit");
+    // get private keys for blinding and signing the withdrawal
+    getUTXOs().then((utxos) => {
+        walletUTXOs = utxos;
+        calculateBalances();
+    });
 } catch (error) {
     console.error("Failed to connect:", error);
+    hasError = true;
 }
 
-// Error flag if wallet API is not available
-const hasError = !walletUTXOs || !depositKeys;
-
-// Fallback if wallet API fails to respond later on
-const FALLBACK_CHANGE_ADDRESS =
-    "tlq1qqv9yfp6n7zpaku4l7sgxxsk5tcl0tc5f2rx328fnacqemva6qz032e0hay22hl7jwnn9fvehp6tu7yxfm32uzttx6vhzuu0ps";
-
-// Initial parameters
-let balanceBTC: number = 0;
-let balanceTOKEN: number = 0;
-let exchangeRate: number | null = null;
-let success: boolean = false;
-let confi: confidential.Confidential;
-let secp: Secp256k1ZKP;
-let zkpValidator: ZKPValidator;
-let mainOutput = 0; // used to show the unblinded tx in explorer
-let mainNonce: Buffer; // used to show the unblinded tx in explorer
-
-// deposit address will be derived from private and blinding keys
-// to prove they are valid
-let confDepositAddress = "";
-let explDepositAddress = "";
-
-const ERROR_MESSAGE = `<div style="text-align: center;">
-      <h2>Error connecting to the exchange</h2>
-      <p>We're experiencing issues loading the necessary information. Please wait or try again later.</p>
-    </div>`;
-
-if (!hasError) {
-    // Derive confidential deposit address
-    const blindingPrivateKey = Buffer.from(depositKeys.BlindingKey, "hex");
-    const ECPair = ECPairFactory(ecclib);
-    const blindingKeyPair = ECPair.fromPrivateKey(blindingPrivateKey);
-    const blindingPublicKey = blindingKeyPair.publicKey;
-
-    const keyPair = ECPair.fromWIF(depositKeys.PrivKey, NETWORK);
-
-    // Generate explicit address using P2WPKH
-    explDepositAddress = payments.p2wpkh({
-        pubkey: keyPair.publicKey,
-        network: NETWORK,
-    }).address!;
-
-    // Convert to confidential
-    confDepositAddress = address.toConfidential(
-        explDepositAddress,
-        blindingPublicKey,
-    );
-
-    // Initialize blinder
-    secp = await zkp();
-    confi = new confidential.Confidential(secp);
-    zkpValidator = new ZKPValidator(secp);
-
-    // fetch and unblind balances for the provided UTXOs
-    // to prove that all keys are valid
-    await calculateBalances();
-}
+// Initialize blinder
+secp = await zkp();
+confi = new confidential.Confidential(secp);
+zkpValidator = new ZKPValidator(secp);
 
 const HTML_BODY = `
     <div>
-        <h3>* Liquid Testnet *</h3>
-        <h1>Private BTC-USDt Swaps</h1>   
-        <p>Send L-BTC (max <span id="maxBTC">Loading...</span>) to receive ${TOKEN_NAME}</p>
-        <p>Send ${TOKEN_NAME} (max $<span id="maxTOKEN">Loading...</span>) to receive L-BTC</p>
-        <p>Exchange Rate: 1 BTC = <span id="rate">Loading...</span> ${TOKEN_NAME}</p>
+        <p>* Testnet *</p>
+        <h1>Liquid ${TITLE_TICKER} Swaps</h1>   
+        <p>Send L-BTC (max <span id="maxBTC"> Calculating...</span>) to receive ${TOKEN_NAME}</p>
+        <p>Send ${TOKEN_NAME} (max $<span id="maxTOKEN"> Calculating...</span>) to receive L-BTC</p>
+        <p>Exchange Rate: 1 BTC = <span id="rate">Loading...</span> ${TOKEN}</p>
         <p>Fee Rate: ${formatValue(FEE_RATE, "")}% + ${FEE_BASE} sats</p>
-        <label for="return-address">1. Paste your confidential withdrawal address:</label>
-        <br>
-        <input autocomplete="off" type="text" size="110em" id="return-address" placeholder="Paste your withdrawal address here" />
-        <p>2. Fund this address with Liquid BTC or ${TOKEN_NAME}:</p>
-        <p>${confDepositAddress}</p>
-        <p>3. Keep this page open and do not refresh.</p>
-        <p id="status">Awaiting deposit...</p>
+        <label for="return-address">Step 1. Paste your confidential withdrawal address:</label>
+        <br><br>
+        <input
+            autocomplete="off"
+            type="text"
+            size="110em"
+            id="return-address"
+            placeholder="Paste your withdrawal address here"
+        />
+        <div id="hiddenContent" style="display:none">
+            <p>Step 2. Fund this address with Liquid BTC or ${TOKEN_NAME}:</p>
+            <p id="depositAddress"> Deriving...</p>
+            <p>*** Keep this page open and do not refresh ***</p>
+            <p id="status">Awaiting deposit...</p>
+        </div>
         <p id="transaction"></p>
-    </div>
-  `;
+    </div>`;
 
 // Render page
 document.querySelector<HTMLDivElement>("#app")!.innerHTML = hasError
     ? ERROR_MESSAGE
     : HTML_BODY;
 
+// add listener to the input field
+if (!hasError) {
+    const inputField = document.getElementById("return-address");
+    const contentToToggle = document.getElementById("hiddenContent");
+
+    // Function to toggle visibility based on input value
+    function toggleContentVisibility() {
+        // verify address
+        if (inputField) {
+            const addr = (inputField as HTMLInputElement).value;
+            if (addr) {
+                try {
+                    if (address.isConfidential(addr)) {
+                        contentToToggle.style.display = "block";
+                        // invalid withdrawal address
+                        setInnerHTML("transaction", ``);
+                        showDepositAddress();
+                        return;
+                    }
+                } catch (e) {
+                    console.error(e);
+                }
+
+                // invalid withdrawal address
+                setInnerHTML(
+                    "transaction",
+                    `Please provide confidential withdrawal address!`,
+                );
+                return;
+            }
+        }
+
+        contentToToggle.style.display = "none";
+    }
+
+    if (inputField) {
+        // Add event listener for the 'change' event
+        inputField.addEventListener("change", toggleContentVisibility);
+
+        // Listen for paste events as well
+        inputField.addEventListener("paste", () => {
+            setTimeout(toggleContentVisibility, 0); // Delay to ensure the pasted content is read
+        });
+    }
+}
+
+// Fetch private and blinding keys to generate the deposit address.
+// They will be added to walletUTXOs upon funding,
+// because private keys may be needed for signing the withdrawal.
+// This ensures that the client gets the refund if not enough funds in
+// the wallet UTXOs by the time his deposit arrives
+function getDepositAddress() {
+    getNewKeys("deposit").then((keys) => {
+        // set global variable        
+        depositKeys = keys;
+
+        // Derive confidential deposit address
+        const blindingPrivateKey = Buffer.from(depositKeys.BlindingKey, "hex");
+        const ECPair = ECPairFactory(ecclib);
+        const blindingKeyPair = ECPair.fromPrivateKey(blindingPrivateKey);
+        const blindingPublicKey = blindingKeyPair.publicKey;
+        const keyPair = ECPair.fromWIF(depositKeys.PrivKey, NETWORK);
+
+        // Generate explicit address using P2WPKH
+        explDepositAddress = payments.p2wpkh({
+            pubkey: keyPair.publicKey,
+            network: NETWORK,
+        }).address!;
+
+        // Convert to confidential
+        confDepositAddress = address.toConfidential(
+            explDepositAddress,
+            blindingPublicKey,
+        );
+
+        showDepositAddress();
+    });
+}
+
+function showDepositAddress() {
+    if (confDepositAddress) {
+        // show on the web page
+        let element = document.getElementById("depositAddress");
+        if (element) {
+            element.textContent = confDepositAddress;
+
+            // Start polling for transactions every 5 seconds
+            interval = setInterval(pollForTransactions, 5000);
+        }
+    } else {
+        getDepositAddress();
+    }
+}
+
 // Function to update the global exchangeRate
 function updateExchangeRate(price: number | null) {
     exchangeRate = price;
 
-    if (!exchangeRate) {
+    if (!exchangeRate || hasError) {
         // Update the HTML content to display an error message
         const appElement = document.querySelector<HTMLDivElement>("#app");
         if (appElement) {
@@ -173,6 +245,8 @@ function updateExchangeRate(price: number | null) {
         if (appElement && appElement.innerHTML == ERROR_MESSAGE) {
             // Update the HTML content to display as normal
             appElement.innerHTML = HTML_BODY;
+            // refresh balance
+            
         }
     }
 
@@ -182,11 +256,43 @@ function updateExchangeRate(price: number | null) {
         element.textContent = priceText;
     }
 
-    element = document.getElementById("maxBTC");
+    // Update the document title with the mid-price
+    document.title = `${priceText} ${TITLE_TICKER}`;
+}
+
+async function calculateBalances() {
+    if (!walletUTXOs) {
+        return;
+    }
+    
+    let balBTC = 0;
+    let balTOKEN = 0;
+
+    for (let i = 0; i < walletUTXOs.length; i++) {
+        const { value, token, witness } = await fetchValue(walletUTXOs[i]);
+        if (value > 0) {
+            walletUTXOs[i].value = value;
+            walletUTXOs[i].token = token;
+            walletUTXOs[i].witness = witness;
+            if (token == "BTC") {
+                balBTC += value;
+            } else {
+                balTOKEN += value;
+            }
+        }
+    }
+
+    // update global vars
+    balanceBTC = balBTC;
+    balanceBTC = balTOKEN;
+    
+    let element = document.getElementById("maxBTC");
     if (element) {
         // 1% cushion and round to 1k sats
-        const maxBTC =
-            Math.floor(((balanceTOKEN / exchangeRate) * 0.99) / 1_000) * 1_000;
+        const maxBTC = Math.min(
+            MAX_TRADE_SATS,
+            Math.floor(((balanceTOKEN / exchangeRate) * 0.99) / 1_000) * 1_000,
+        );
         element.textContent =
             maxBTC.toLocaleString("en-US", {
                 minimumFractionDigits: 0,
@@ -197,34 +303,12 @@ function updateExchangeRate(price: number | null) {
     element = document.getElementById("maxTOKEN");
     if (element) {
         // 1% cushion and round to 1$
-        const maxTOKEN = Math.floor(fromSats(balanceBTC * exchangeRate * 0.99));
+        const maxTOKEN = Math.floor(
+            fromSats(
+                Math.min(MAX_TRADE_SATS, balanceBTC) * exchangeRate * 0.99,
+            ),
+        );
         element.textContent = formatValue(maxTOKEN, "USD");
-    }
-
-    // Update the document title with the mid-price
-    document.title = `${priceText} ${TITLE_TICKER}`;
-}
-
-async function calculateBalances() {
-    balanceBTC = 0;
-    balanceTOKEN = 0;
-
-    if (!walletUTXOs) {
-        return;
-    }
-
-    for (let i = 0; i < walletUTXOs.length; i++) {
-        const { value, token, witness } = await fetchValue(walletUTXOs[i]);
-        if (value > 0) {
-            walletUTXOs[i].value = value;
-            walletUTXOs[i].token = token;
-            walletUTXOs[i].witness = witness;
-            if (token == "BTC") {
-                balanceBTC += value;
-            } else {
-                balanceTOKEN += value;
-            }
-        }
     }
 }
 
@@ -325,7 +409,6 @@ async function pollForTransactions() {
                         if (
                             !withdrawalAddress ||
                             !address.isConfidential(withdrawalAddress) ||
-                            withdrawalAddress == explDepositAddress ||
                             withdrawalAddress == confDepositAddress
                         ) {
                             // invalid withdrawal address
@@ -504,13 +587,20 @@ async function processWithdrawal(
     let satsFee = FEE_BASE;
     let tx: Transaction;
 
-    const btcChangeAddress =
-        (await getNewAddress("btc_change")) || FALLBACK_CHANGE_ADDRESS;
-    let tokenChangeAddress = FALLBACK_CHANGE_ADDRESS;
+    // Generate return addresses for change
+    const btcChangeAddress = await getNewAddress(
+        "btc_change",
+        confDepositAddress,
+    );
+
+    let tokenChangeAddress = btcChangeAddress;
 
     if (satsTOKEN > 0 && satsTOKEN < balanceTOKEN) {
         // get a unique address
-        tokenChangeAddress = await getNewAddress("token_change");
+        tokenChangeAddress = await getNewAddress(
+            `${TOKEN}_change`,
+            btcChangeAddress,
+        );
     }
 
     // try a maximum of 3 times to optimize the fee
@@ -564,7 +654,7 @@ async function processWithdrawal(
             `TxId: <a href="${ESPLORA_URL}/tx/${result}#blinded=${value},${asset},${valueBlinder},${assetBlinder}" target="_blank">${result}</a>`,
         );
 
-        setInnerHTML("transaction", `<a href="/">New Swap</a>`, true);
+        setInnerHTML("transaction", `<br><br><a href="/">New Swap</a>`, true);
 
         return true;
     } else {
@@ -608,7 +698,7 @@ async function prepareTransaction(
     let counter = new Counter(numBlinders);
 
     if (satsTOKEN > 0) {
-        // add USD output and change
+        // add TOKEN output
         outs.push({
             asset: ASSET_ID.get(TOKEN)!,
             amount: satsTOKEN,
@@ -617,7 +707,7 @@ async function prepareTransaction(
             blindingPublicKey: address.fromConfidential(toAddress).blindingKey,
         });
 
-        // Add the change output in TOKEN
+        // Add the TOKEN change output 
         if (totalTOKEN - satsTOKEN > DUST_TOKEN) {
             outs.push({
                 asset: ASSET_ID.get(TOKEN)!,
@@ -643,7 +733,6 @@ async function prepareTransaction(
 
     // Add the change output in BTC
     const changeBTC = totalBTC - satsBTC - satsFee;
-
     if (changeBTC > DUST_BTC) {
         outs.push({
             asset: ASSET_ID.get("BTC")!,
@@ -652,6 +741,19 @@ async function prepareTransaction(
             blinderIndex: counter.iterate(),
             blindingPublicKey:
                 address.fromConfidential(btcChangeAddress).blindingKey,
+        });
+    }
+
+    // 1 input and 1 output can't be blinded, split the output in 2
+    if (ins.length == 1 && outs.length == 1) {
+        const splitAmount = Math.floor(outs[0].amount / 2);
+        outs[0].amount -= splitAmount;
+        outs.push({
+            asset: outs[0].asset,
+            amount: splitAmount,
+            script: outs[0].script!,
+            blinderIndex: counter.iterate(),
+            blindingPublicKey: outs[0].blindingPublicKey,
         });
     }
 
@@ -733,7 +835,7 @@ async function prepareTransaction(
         }
     }
 
-    // sign and finalize inputs
+    // sign inputs
     pset.inputs.forEach((input, index) => {
         // Generate input preimage for signing
         const sighash = Transaction.SIGHASH_ALL;
@@ -756,6 +858,7 @@ async function prepareTransaction(
         pset.inputs[index].partialSigs.push(partialSig);
     });
 
+    // Finalize pset
     const finalizer = new Finalizer(pset);
     finalizer.finalize();
     if (!finalizer.pset.isComplete()) {
@@ -833,11 +936,4 @@ async function broadcastTransaction(txHex: string): Promise<string> {
     const result = await response.text();
 
     return result;
-}
-
-let interval: NodeJS.Timeout;
-
-if (!hasError) {
-    // Start polling for transactions every 5 seconds
-    interval = setInterval(pollForTransactions, 5000);
 }
