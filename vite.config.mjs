@@ -60,7 +60,7 @@ export default defineConfig({
         https: true,
         cors: { origin: "*" },
     },
-    base: '/',
+    base: '/usdt/',
     build: {
         target: 'esnext', // Ensures support for modern JavaScript features
         commonjsOptions: {
