@@ -37,7 +37,7 @@ import {
 import { loadWasm } from "./wasm";
 
 // wait 10 seconds to connect debugger
-//await new Promise((f) => setTimeout(f, 10000));
+await new Promise((f) => setTimeout(f, 10000));
 
 // constants
 const WALLET_API_URL = "http://localhost:1974";
@@ -59,8 +59,9 @@ const ERROR_MESSAGE = `
 export declare type UTXO = {
     TxId?: string;
     Vout?: number;
-    P?: string; // private key hex
-    B?: string; // blinding private key hex
+    Public?: Buffer; // public key
+    Private?: Buffer; // private key
+    Blinding?: Buffer; // blinding private key hex
     value?: number; // Token or BTC amount in sats
     token?: string; // TOKEN ticker or 'BTC'
     witness?: TxOutput; // fetched during unblind
@@ -316,7 +317,7 @@ let wallet: WalletInfo = {};
         const tx = Transaction.fromHex(txHex);
         const unblindedOutput = confi.unblindOutputWithKey(
             tx.outs[utxo.Vout],
-            Buffer.from(utxo.B, "hex"),
+            utxo.Blinding,
         );
         // add witness
         utxo.witness = tx.outs[utxo.Vout];
@@ -454,7 +455,7 @@ let wallet: WalletInfo = {};
                             }
 
                             setStatus(
-                                `Exchange rate fixed at ${formatValue(fixedRate, "USD")} ${feeDirection} ${formatValue(wallet.FeeRatePPM / 1_000_000, "")}% = ${formatValue(bumpedRate, "USD")}`,
+                                `Exchange rate fixed at ${formatValue(fixedRate, "USD")} ${feeDirection} ${formatValue(wallet.FeeRatePPM / 10_000, "")}% = ${formatValue(bumpedRate, "USD")}`,
                                 true,
                             );
 
@@ -782,7 +783,6 @@ let wallet: WalletInfo = {};
             secp,
             ZKPGenerator.WithOwnedInputs(ownedInputs),
         );
-        const ECPair = ECPairFactory(secp.ecc);
         const blinder = new Blinder(pset, ownedInputs, zkpValidator, zkpGenerator);
         const outputBlindingArgs = zkpGenerator.blindOutputs(
             pset,
@@ -821,17 +821,16 @@ let wallet: WalletInfo = {};
             // Generate input preimage for signing
             const sighash = Transaction.SIGHASH_ALL;
             const preimage = pset.getInputPreimage(index, sighash);
-            const keyPair = ECPair.fromWIF(selectedUTXOs[index].P, NETWORK);
-
+            
             // Generate the ECDSA signature for the input using your ECC library
             const signature = ecclib.sign(
                 new Uint8Array(preimage),
-                Uint8Array.from(keyPair.privateKey!),
+                Uint8Array.from(selectedUTXOs[index].Private!),
             );
 
             // Attach signature to the input as a partial signature
             const partialSig = {
-                pubkey: keyPair.publicKey,
+                pubkey: selectedUTXOs[index].Public,
                 signature: script.signature.encode(Buffer.from(signature), sighash),
             };
 
@@ -938,18 +937,13 @@ let wallet: WalletInfo = {};
     async function getDepositAddress() {
         depositKeys = await getNewKeys("deposit");
         // Derive confidential deposit address
-        const blindingPrivateKey = Buffer.from(
-            depositKeys.B,
-            "hex",
-        );
         const ECPair = ECPairFactory(ecclib);
-        const blindingKeyPair = ECPair.fromPrivateKey(blindingPrivateKey);
+        const blindingKeyPair = ECPair.fromPrivateKey(depositKeys.Blinding);
         const blindingPublicKey = blindingKeyPair.publicKey;
-        const keyPair = ECPair.fromWIF(depositKeys.P, NETWORK);
-
+        
         // Generate explicit address using P2WPKH
         explDepositAddress = payments.p2wpkh({
-            pubkey: keyPair.publicKey,
+            pubkey: depositKeys.Public,
             network: NETWORK,
         }).address!;
 
