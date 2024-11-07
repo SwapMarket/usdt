@@ -1,3 +1,5 @@
+import "./wasm_exec";
+
 export async function loadWasm() {
     const go = new Go(); // Requires "wasm_exec.js" in the global scope
 
