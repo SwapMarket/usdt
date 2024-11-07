@@ -114,7 +114,7 @@ let wallet: WalletInfo = {};
         await bitfinexWS.connect();
         
         // initiate WASM mobule
-       // await loadWasm();
+        await loadWasm();
 
         // initialize asset lookup map
         if (!assetIdMap) {
