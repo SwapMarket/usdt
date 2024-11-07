@@ -37,7 +37,7 @@ import {
 import { loadWasm } from "./wasm";
 
 // wait 10 seconds to connect debugger
-await new Promise((f) => setTimeout(f, 10000));
+//await new Promise((f) => setTimeout(f, 10000));
 
 // constants
 const WALLET_API_URL = "http://localhost:1974";

@@ -59,6 +59,9 @@ export default defineConfig({
     server: {
         https: true,
         cors: { origin: "*" },
+        mimeTypes: {
+            'application/wasm': ['wasm']
+        }
     },
     base: '/usdt/',
     build: {
