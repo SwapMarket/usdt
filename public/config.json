@@ -1,7 +1,7 @@
 {
     "network": "testnet",
     "loglevel": "debug",
-    "apiUrl": "http://localhost:1974",
+    "apiUrl": "https://api.swapmarket.online",
     "blockExplorerUrl": "https://blockstream.info/liquidtestnet",
     "bfxTicker": "tBTCUST",
     "titleTicker": "BTC/USDt",

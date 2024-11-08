@@ -43,7 +43,7 @@ import {
 } from "./wasm";
 
 // wait 10 seconds to connect debugger
-//await new Promise((f) => setTimeout(f, 10000));
+await new Promise((f) => setTimeout(f, 10000));
 
 // constants
 const POLL_INTERVAL = 5_000; // frequency of mempool transaction polling
@@ -148,18 +148,12 @@ let info: WalletInfo = {};
         zkpValidator = new ZKPValidator(secp);
 
         // Loading UTXOs takes longer, do not await
-        getUTXOs()
-            .then(() => {
-                if (!walletUTXOs) {
-                    hasError = true;
-                } else {
-                    calculateBalances();
-                }
-            })
-            .catch((error) => {
-                log.error("Error connecting to wallet:", error);
-                hasError = true;
-            });
+        await getUTXOs()
+        if (!walletUTXOs) {
+            hasError = true;
+        } else {
+            await calculateBalances();
+        }
     } catch (error) {
         log.error("Failed to connect:", error);
         hasError = true;
@@ -170,29 +164,27 @@ let info: WalletInfo = {};
         <div>
             <p>* Testnet *</p>
             <h1>Liquid ${config.titleTicker} Swaps</h1>   
-            <p>Send L-BTC (max <span id="maxBTC"> Loading...</span>) to receive ${info.TokenName}</p>
-            <p>Send ${info.TokenName} (max $<span id="maxTOKEN"> Loading...</span>) to receive L-BTC</p>
+            <p>Send L-BTC (max ${formatValue(tradeLimitBTC,"sats")} sats) to receive ${info.TokenName}</p>
+            <p>Send ${info.TokenName} (max $${formatValue(tradeLimitToken,"USD")}) to receive L-BTC</p>
             <p>Exchange Rate: 1 BTC = <span id="rate">Loading...</span> ${info.Token}</p>
             <p>Fee Rate: ${formatValue(info.FeeRatePPM / 10_000, "")}% + ${info.FeeBaseSats} sats</p>
-            <div id="step1" style="display:${balanceBTC + balanceToken > 0 ? "block" : "none"}">
-                <label for="return-address">Step 1. Paste your confidential withdrawal address:</label>
-                <br><br>
-                <input
-                    autocomplete="off"
-                    type="text"
-                    size="110em"
-                    id="return-address"
-                    placeholder="Paste your withdrawal address here"
-                    value="${withdrawalAddress}"
-                />
-            </div>
+            <label for="return-address">Step 1. Paste your confidential withdrawal address:</label>
+            <br><br>
+            <input
+                autocomplete="off"
+                type="text"
+                size="110em"
+                id="return-address"
+                placeholder="Paste your withdrawal address here"
+                value="${withdrawalAddress}"
+            />
             <div id="step2" style="display:${withdrawalAddress ? "block" : "none"}">
                 <p>Step 2. Fund this address with Liquid BTC or ${info.TokenName}:</p>
                 <p id="depositAddress">${confDepositAddress ? confDepositAddress : " Deriving..."}</p>
                 <p>*** Keep this page open and do not refresh ***</p>
                 <p id="status">${withdrawalStatus}</p>
             </div>
-            <p id="transaction">Loading...</p>
+            <p id="transaction"></p>
             <br>
             <p>
                 Commit Hash: 
@@ -204,6 +196,9 @@ let info: WalletInfo = {};
             </p>
         </div>`;
     };
+
+    // Remove loading
+    document.body.classList.remove("loading");
 
     // Render page
     document.querySelector<HTMLDivElement>("#app")!.innerHTML = hasError
@@ -300,40 +295,6 @@ async function showDepositAddress() {
         // fetch a new address, then show
         await getDepositAddress();
         showDepositAddress();
-    }
-}
-
-// update
-async function showTradeLimits() {
-    let element = document.getElementById("maxBTC");
-    if (element) {
-        // 1% cushion and round to 1k sats
-        tradeLimitBTC = Math.min(
-            info.MaxTradeSats,
-            Math.floor(((balanceToken / exchangeRate) * 0.99) / 1_000) * 1_000,
-        );
-        element.textContent =
-            tradeLimitBTC.toLocaleString("en-US", {
-                minimumFractionDigits: 0,
-                maximumFractionDigits: 0,
-            }) + " sats";
-    }
-
-    element = document.getElementById("maxTOKEN");
-    if (element) {
-        // 1% cushion and round to 1$
-        tradeLimitToken = Math.floor(
-            fromSats(
-                Math.min(info.MaxTradeSats, balanceBTC) * exchangeRate * 0.99,
-            ),
-        );
-        element.textContent = formatValue(tradeLimitToken, "USD");
-    }
-
-    element = document.getElementById("step1");
-    if (element && balanceBTC + balanceToken > 0) {
-        element.style.display = "block";
-        setInnerHTML("transaction", ``);
     }
 }
 
@@ -924,8 +885,16 @@ async function calculateBalances() {
     balanceBTC = balBTC;
     balanceToken = balToken;
 
-    // update HTML
-    showTradeLimits();
+    tradeLimitBTC = Math.min(
+        info.MaxTradeSats,
+        Math.floor(((balanceToken / exchangeRate) * 0.99) / 1_000) * 1_000,
+    );
+
+    tradeLimitToken = Math.floor(
+        fromSats(
+            Math.min(info.MaxTradeSats, balanceBTC * 0.99) * exchangeRate,
+        ),
+    );
 }
 
 // fetch wallet private and blinding keys for UTXOs

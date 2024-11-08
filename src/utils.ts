@@ -11,6 +11,10 @@ export function formatValue(value: number, token: string): string {
     if (token == "BTC") {
         digits = 8;
     }
+    if (token == "sats") {
+        digits = 0;
+    }
+    
     return value.toLocaleString("en-US", {
         minimumFractionDigits: digits,
         maximumFractionDigits: digits,
