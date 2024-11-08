@@ -43,7 +43,7 @@ import {
 } from "./wasm";
 
 // wait 10 seconds to connect debugger
-await new Promise((f) => setTimeout(f, 10000));
+// await new Promise((f) => setTimeout(f, 10000));
 
 // constants
 const POLL_INTERVAL = 5_000; // frequency of mempool transaction polling
