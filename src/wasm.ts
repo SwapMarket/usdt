@@ -2,7 +2,7 @@ const WASM_URL = 'wasm/main.wasm';
 const WASM_EXEC_URL = '/usdt/wasm_exec.js';
 
 declare const Go: any;
-declare function multiply(a: number, b: number): number;
+declare function goDecodeUTXOs(base64Data: string): string;
 
 export async function loadWasm() {
     // Dynamically load `wasm_exec.js` from the public folder
@@ -17,13 +17,6 @@ export async function loadWasm() {
     // Instantiate Go after wasm_exec.js is loaded
     const go = new Go(); 
     
-    go.importObject.env = {
-        'add': function(x, y) {
-            return x + y
-        }
-        // ... other functions
-    }
-    
     // Fetch the WASM file and load it manually
     const response = await fetch(WASM_URL);
     const wasmBytes = await response.arrayBuffer();
@@ -32,8 +25,10 @@ export async function loadWasm() {
 
     go.run(wasm);
 
-    
+    console.log("WASM and Go runtime initialized");
+}
 
-    // Calling the multiply function:
-    console.log('multiplied two numbers:', multiply(5, 3));
+// Repackage to export `decodeUTXOs` for usage in other files
+export function decodeUTXOs(base64Data: string): any {
+    return JSON.parse(goDecodeUTXOs(base64Data));
 }

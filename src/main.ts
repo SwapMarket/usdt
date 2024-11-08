@@ -22,8 +22,6 @@ import {
     payments,
 } from "liquidjs-lib";
 import * as ecclib from "tiny-secp256k1";
-
-import { BitfinexWS } from "./bitfinex";
 import "./style.css";
 import {
     Counter,
@@ -34,10 +32,11 @@ import {
     scrambleArray,
     setInnerHTML,
 } from "./utils";
-import { loadWasm } from "./wasm";
+import { BitfinexWS } from "./bitfinex";
+import { loadWasm, decodeUTXOs } from "./wasm";
 
 // wait 10 seconds to connect debugger
-await new Promise((f) => setTimeout(f, 10000));
+// await new Promise((f) => setTimeout(f, 10000));
 
 // constants
 const WALLET_API_URL = "http://localhost:1974";
@@ -59,9 +58,9 @@ const ERROR_MESSAGE = `
 export declare type UTXO = {
     TxId?: string;
     Vout?: number;
-    Public?: Buffer; // public key
-    Private?: Buffer; // private key
-    Blinding?: Buffer; // blinding private key hex
+    P?: string; // public key base64
+    R?: string; // private key base64
+    B?: string; // blinding private base64
     value?: number; // Token or BTC amount in sats
     token?: string; // TOKEN ticker or 'BTC'
     witness?: TxOutput; // fetched during unblind
@@ -317,7 +316,7 @@ let wallet: WalletInfo = {};
         const tx = Transaction.fromHex(txHex);
         const unblindedOutput = confi.unblindOutputWithKey(
             tx.outs[utxo.Vout],
-            utxo.Blinding,
+            Buffer.from(utxo.B, 'base64'),
         );
         // add witness
         utxo.witness = tx.outs[utxo.Vout];
@@ -825,12 +824,12 @@ let wallet: WalletInfo = {};
             // Generate the ECDSA signature for the input using your ECC library
             const signature = ecclib.sign(
                 new Uint8Array(preimage),
-                Uint8Array.from(selectedUTXOs[index].Private!),
+                new Uint8Array(Buffer.from(selectedUTXOs[index].R!, 'base64')),
             );
 
             // Attach signature to the input as a partial signature
             const partialSig = {
-                pubkey: selectedUTXOs[index].Public,
+                pubkey: Buffer.from(selectedUTXOs[index].P, 'base64'),
                 signature: script.signature.encode(Buffer.from(signature), sighash),
             };
 
@@ -908,7 +907,9 @@ let wallet: WalletInfo = {};
                     `Failed to fetch UTXOs: ${response.statusText}`,
                 );
             }
-            walletUTXOs = await response.json();
+
+            const base64data =await response.text();
+            walletUTXOs = decodeUTXOs(base64data);
         } catch (error) {
             console.error("Error fetching UTXOs:", error);
             throw error;
@@ -925,7 +926,8 @@ let wallet: WalletInfo = {};
                 console.error("Error fetching new keys:", response.statusText)
                 return null;
             }
-            return await response.json();
+            const base64data = await response.text();
+            return decodeUTXOs(base64data)[0];
         } catch (error) {
             console.error("Error fetching new keys:", error)
             return null;
@@ -938,12 +940,12 @@ let wallet: WalletInfo = {};
         depositKeys = await getNewKeys("deposit");
         // Derive confidential deposit address
         const ECPair = ECPairFactory(ecclib);
-        const blindingKeyPair = ECPair.fromPrivateKey(depositKeys.Blinding);
+        const blindingKeyPair = ECPair.fromPrivateKey(Buffer.from(depositKeys.B, 'base64'));
         const blindingPublicKey = blindingKeyPair.publicKey;
         
         // Generate explicit address using P2WPKH
         explDepositAddress = payments.p2wpkh({
-            pubkey: depositKeys.Public,
+            pubkey: Buffer.from(depositKeys.P, 'base64'),
             network: NETWORK,
         }).address!;
 
