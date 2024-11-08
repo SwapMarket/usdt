@@ -39,6 +39,9 @@ jobs:
 
       - name: Install Go
         run: wget https://go.dev/dl/go1.21.3.linux-amd64.tar.gz && sudo tar -C /usr/local -xzf go1.21.3.linux-amd64.tar.gz
+        
+      - name: Setup testnet
+        run: npm run testnet
 
       - name: Build
         env:
