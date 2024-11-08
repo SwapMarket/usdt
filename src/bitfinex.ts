@@ -1,3 +1,5 @@
+import log from "loglevel";
+
 export class BitfinexWS {
     private ws: WebSocket;
     private ticker: string;
@@ -50,7 +52,7 @@ export class BitfinexWS {
 
     // Subscribe to the BTC/USDT order book
     private handleOpen() {
-        console.log("WebSocket connected.");
+        log.info("WebSocket connected.");
 
         // Reset reconnect attempts upon successful connection
         this.reconnectAttempts = 0;
@@ -119,7 +121,7 @@ export class BitfinexWS {
 
     // Handle WebSocket close event and attempt reconnection
     private handleClose() {
-        console.log("WebSocket disconnected. Attempting to reconnect...");
+        log.warn("WebSocket disconnected. Attempting to reconnect...");
         this.handleConnectionLost();
 
         if (this.reconnectAttempts < this.maxReconnectAttempts) {
@@ -128,11 +130,11 @@ export class BitfinexWS {
             const reconnectTimeout =
                 this.reconnectDelay * Math.pow(2, this.reconnectAttempts - 1);
             setTimeout(() => {
-                console.log(`Reconnect attempt ${this.reconnectAttempts}`);
-                this.connect().catch(console.error); // Attempt reconnection
+                log.info(`Reconnect attempt ${this.reconnectAttempts}`);
+                this.connect().catch(log.error); // Attempt reconnection
             }, reconnectTimeout);
         } else {
-            console.log("Max reconnect attempts reached. Unable to reconnect.");
+            log.warn("Max reconnect attempts reached. Unable to reconnect.");
         }
     }
 

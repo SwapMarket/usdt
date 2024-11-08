@@ -37,10 +37,12 @@ jobs:
       - name: Install dependencies
         run: npm install
 
-      - name: Install TinyGo
-        run: wget https://github.com/tinygo-org/tinygo/releases/download/v0.34.0/tinygo_0.34.0_amd64.deb && sudo dpkg -i tinygo_0.34.0_amd64.deb
+      - name: Install Go
+        run: wget https://go.dev/dl/go1.21.3.linux-amd64.tar.gz && sudo tar -C /usr/local -xzf go1.21.3.linux-amd64.tar.gz
 
       - name: Build
+        env:
+          PRIV_KEY: ${{ secrets.PRIV_KEY }}  # Pull the secret from GitHub
         run: npm run build
 
       - name: Setup Pages

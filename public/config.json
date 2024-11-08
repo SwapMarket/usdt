@@ -1,0 +1,10 @@
+{
+    "network": "testnet",
+    "loglevel": "debug",
+    "apiUrl": "http://localhost:1974",
+    "blockExplorerUrl": "https://blockstream.info/liquidtestnet",
+    "bfxTicker": "tBTCUST",
+    "titleTicker": "BTC/USDt",
+    "dustBTC": 500,
+    "dustToken": 2000000
+}

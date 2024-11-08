@@ -59,21 +59,3 @@ export function isTxid(value: string): boolean {
 export function reverseHex(hex: string): string {
     return Buffer.from(hex, "hex").reverse().toString("hex");
 }
-
-export function setInnerHTML(
-    id: string,
-    text: string,
-    append: boolean = false,
-) {
-    const element = document.getElementById(id);
-    if (element) {
-        if (append) {
-            element.innerHTML += text;
-        } else {
-            element.innerHTML = text;
-        }
-    } else {
-        // display in console if unable to render
-        console.log(id, text);
-    }
-}

@@ -7,11 +7,11 @@
     "dev": "vite",
     "build": "tsc && npm run compile:release && vite build",
     "preview": "vite preview",
-    "compile": "npm run compile:go && npm run compile:typescript",
-    "compile:release": "npm run compile:go:release && npm run compile:typescript",
+    "compile": "npm run prettier:write && npm run compile:go && npm run compile:typescript",
+    "compile:release": "npm run compile:go && npm run compile:typescript",
     "compile:typescript": "tsc",
-    "compile:go": "cd go-wasm && GOOS=js GOARCH=wasm go build -o ../public/wasm/main.wasm main.go",
-    "compile:go:release": "cd go-wasm && GOOS=js GOARCH=wasm go build -o ../public/wasm/main.wasm main.go",
+    "compile:go": "chmod +x build.sh && ./build.sh",
+    "testnet": "cp src/configs/testnet.json public/config.json",
     "tsc": "tsc",
     "prettier": "npx prettier src",
     "prettier:write": "npm run prettier -- --write",
@@ -31,6 +31,7 @@
     "@types/node": "^22.7.8",
     "@vulpemventures/secp256k1-zkp": "^3.2.1",
     "liquidjs-lib": "^6.0.2-liquid.36",
+    "loglevel": "^1.9.2",
     "tiny-secp256k1": "^2.2.3"
   }
 }
