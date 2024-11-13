@@ -8,7 +8,6 @@ import {
     OwnedInput,
     Pset,
     Transaction,
-    TxOutput,
     Updater,
     UpdaterInput,
     UpdaterOutput,
@@ -25,6 +24,7 @@ import * as ecclib from "tiny-secp256k1";
 
 import { BitfinexWS } from "./bitfinex";
 import { config, setConfig } from "./config";
+import type { UTXO, WalletInfo } from "./consts/Types";
 import "./style.css";
 import {
     Counter,
@@ -52,27 +52,6 @@ const ERROR_MESSAGE = `
         <h2>Error connecting to the exchange</h2>
         <p>We're experiencing issues loading the necessary information. Please try again later.</p>
     </div>`;
-
-// types
-export declare type UTXO = {
-    N?: number; // sequential number
-    TxId?: string;
-    Vout?: number;
-    PubKey?: string; // base64 public key
-    PubBlind?: string; // base64 blinding public key
-    value?: number; // Token or BTC amount in sats
-    token?: string; // TOKEN ticker or 'BTC'
-    witness?: TxOutput; // fetched during unblind
-};
-
-declare type WalletInfo = {
-    Token?: string; // is 'USD'
-    TokenId?: string; // asset id on Liduid network
-    TokenName?: string; // long name
-    MaxTradeSats?: number; // trade limit in BTC sats
-    FeeRatePPM?: number; // traning fee as PPM
-    FeeBaseSats?: number; // fee base in sats to cover network cost
-};
 
 // Global variables
 let network: networks.Network;
@@ -104,7 +83,7 @@ let depositKeys: UTXO | null = null;
 let info: WalletInfo = {};
 
 // Avoids top-level await
-(async () => {
+void (async () => {
     try {
         const response = await fetch("config.json");
         const data = await response.json();
@@ -147,8 +126,8 @@ let info: WalletInfo = {};
         confi = new confidential.Confidential(secp);
         zkpValidator = new ZKPValidator(secp);
 
-        // Loading UTXOs takes longer, do not await
-        await getUTXOs()
+        // Fetch UTXOs from API and load keys into a Go WASM binary
+        await getUTXOs();
         if (!walletUTXOs) {
             hasError = true;
         } else {
@@ -164,8 +143,8 @@ let info: WalletInfo = {};
         <div>
             <p>* Testnet *</p>
             <h1>Liquid ${config.titleTicker} Swaps</h1>   
-            <p>Send L-BTC (max ${formatValue(tradeLimitBTC,"sats")} sats) to receive ${info.TokenName}</p>
-            <p>Send ${info.TokenName} (max $${formatValue(tradeLimitToken,"USD")}) to receive L-BTC</p>
+            <p>Send L-BTC (max ${formatValue(tradeLimitBTC, "sats")} sats) to receive ${info.TokenName}</p>
+            <p>Send ${info.TokenName} (max $${formatValue(tradeLimitToken, "USD")}) to receive L-BTC</p>
             <p>Exchange Rate: 1 BTC = <span id="rate">Loading...</span> ${info.Token}</p>
             <p>Fee Rate: ${formatValue(info.FeeRatePPM / 10_000, "")}% + ${info.FeeBaseSats} sats</p>
             <label for="return-address">Step 1. Paste your confidential withdrawal address:</label>
@@ -205,7 +184,7 @@ let info: WalletInfo = {};
         const contentToToggle = document.getElementById("step2");
 
         // Function to toggle visibility based on input value
-        function toggleContentVisibility() {
+        async function toggleContentVisibility() {
             // verify address
             if (inputField) {
                 const addr = (inputField as HTMLInputElement).value;
@@ -215,7 +194,7 @@ let info: WalletInfo = {};
                             contentToToggle.style.display = "block";
                             withdrawalAddress = addr;
                             setInnerHTML("transaction", ``);
-                            showDepositAddress();
+                            await showDepositAddress();
                             return;
                         }
                     } catch (error) {
@@ -264,8 +243,8 @@ let info: WalletInfo = {};
             }
         }
 
-        let priceText = formatValue(exchangeRate, "USD");
-        let element = document.getElementById("rate");
+        const priceText = formatValue(exchangeRate, "USD");
+        const element = document.getElementById("rate");
         if (element) {
             element.textContent = priceText;
         }
@@ -277,7 +256,7 @@ let info: WalletInfo = {};
     async function showDepositAddress() {
         if (confDepositAddress) {
             // show on the web page
-            let element = document.getElementById("depositAddress");
+            const element = document.getElementById("depositAddress");
             if (element) {
                 element.textContent = confDepositAddress;
 
@@ -287,7 +266,7 @@ let info: WalletInfo = {};
         } else {
             // fetch a new address, then show
             await getDepositAddress();
-            showDepositAddress();
+            await showDepositAddress();
         }
     }
 
@@ -312,7 +291,7 @@ let info: WalletInfo = {};
 
         // Process the transaction details
         const tx = Transaction.fromHex(txHex);
-        let unblindedOutput = confi.unblindOutputWithKey(
+        const unblindedOutput = confi.unblindOutputWithKey(
             tx.outs[utxo.Vout],
             Buffer.from(getBlindingKey(utxo.N), "base64"),
         );
@@ -327,7 +306,7 @@ let info: WalletInfo = {};
         const isSpent = await response.json();
 
         if (isSpent[utxo.Vout].spent!) {
-            unblindedOutput.value = '0';
+            unblindedOutput.value = "0";
         }
 
         return unblindedOutput;
@@ -340,7 +319,7 @@ let info: WalletInfo = {};
         let value = 0;
 
         // map the asset id to token ticker
-        for (let key of assetIdMap.keys()) {
+        for (const key of assetIdMap.keys()) {
             if (assetIdMap.get(key) == assetId) {
                 token = key;
                 value = Number(unblindedOutput.value);
@@ -375,7 +354,9 @@ let info: WalletInfo = {};
                     // find output number
                     let vout = 0;
                     for (const output of depositTx.vout) {
-                        if (output.scriptpubkey_address === explDepositAddress) {
+                        if (
+                            output.scriptpubkey_address === explDepositAddress
+                        ) {
                             break;
                         }
                         vout++;
@@ -441,7 +422,8 @@ let info: WalletInfo = {};
                             // we sold BTC
                             let feeDirection = "+";
                             let bumpedRate = Math.round(
-                                exchangeRate * (1 + info.FeeRatePPM / 1_000_000),
+                                exchangeRate *
+                                    (1 + info.FeeRatePPM / 1_000_000),
                             );
                             withdrawBTC =
                                 Math.floor(deposit.value / bumpedRate) -
@@ -456,7 +438,8 @@ let info: WalletInfo = {};
                                         (1 - info.FeeRatePPM / 1_000_000),
                                 );
                                 withdrawToken = Math.floor(
-                                    (deposit.value - info.FeeBaseSats) * bumpedRate,
+                                    (deposit.value - info.FeeBaseSats) *
+                                        bumpedRate,
                                 );
                                 withdrawBTC = 0;
                             }
@@ -480,7 +463,8 @@ let info: WalletInfo = {};
                                 withdrawBTC = Math.min(
                                     reserveBTC,
                                     Math.floor(
-                                        (withdrawToken - reserveToken) / bumpedRate,
+                                        (withdrawToken - reserveToken) /
+                                            bumpedRate,
                                     ),
                                 );
                                 withdrawToken = reserveToken;
@@ -517,7 +501,8 @@ let info: WalletInfo = {};
 
                         if (withdrawBTC > 0) {
                             const t =
-                                formatValue(fromSats(withdrawBTC), "BTC") + " BTC";
+                                formatValue(fromSats(withdrawBTC), "BTC") +
+                                " BTC";
                             if (textAmount) {
                                 textAmount += " + " + t;
                             } else {
@@ -554,7 +539,9 @@ let info: WalletInfo = {};
                         setStatus(`Ineligible token ignored...`);
                     }
                 } else {
-                    setStatus(`Deposit is in mempool, awaiting confirmation...`);
+                    setStatus(
+                        `Deposit is in mempool, awaiting confirmation...`,
+                    );
                 }
             }
         } catch (error) {
@@ -583,7 +570,8 @@ let info: WalletInfo = {};
         if (satsToken > 0 && satsToken < balanceToken) {
             // get a unique address
             tokenChangeAddress =
-                (await getNewAddress(`${info.Token} change`)) || btcChangeAddress;
+                (await getNewAddress(`${info.Token} change`)) ||
+                btcChangeAddress;
         }
 
         // try a maximum of 3 times to optimize the fee
@@ -694,7 +682,7 @@ let info: WalletInfo = {};
 
         // Use every input to blind some output
         const numBlinders = selectedUTXOs.length;
-        let counter = new Counter(numBlinders);
+        const counter = new Counter(numBlinders);
 
         if (satsToken > 0) {
             // add TOKEN output
@@ -703,7 +691,8 @@ let info: WalletInfo = {};
                 amount: satsToken,
                 script: address.toOutputScript(toAddress, network),
                 blinderIndex: counter.iterate(),
-                blindingPublicKey: address.fromConfidential(toAddress).blindingKey,
+                blindingPublicKey:
+                    address.fromConfidential(toAddress).blindingKey,
             });
 
             // Add the TOKEN change output
@@ -714,7 +703,8 @@ let info: WalletInfo = {};
                     script: address.toOutputScript(tokenChangeAddress, network),
                     blinderIndex: counter.iterate(),
                     blindingPublicKey:
-                        address.fromConfidential(tokenChangeAddress).blindingKey,
+                        address.fromConfidential(tokenChangeAddress)
+                            .blindingKey,
                 });
             }
         }
@@ -726,7 +716,8 @@ let info: WalletInfo = {};
                 amount: satsBTC,
                 script: address.toOutputScript(toAddress, network),
                 blinderIndex: counter.iterate(),
-                blindingPublicKey: address.fromConfidential(toAddress).blindingKey,
+                blindingPublicKey:
+                    address.fromConfidential(toAddress).blindingKey,
             });
         }
 
@@ -770,7 +761,7 @@ let info: WalletInfo = {};
         updater.addInputs(ins).addOutputs(outs);
 
         // Enumerate owned inputs
-        let ownedInputs: OwnedInput[] = [];
+        const ownedInputs: OwnedInput[] = [];
 
         for (let i = 0; i < numBlinders; i++) {
             const unblindedOutput = await unblindUTXO(selectedUTXOs[i]);
@@ -797,7 +788,12 @@ let info: WalletInfo = {};
             secp,
             ZKPGenerator.WithOwnedInputs(ownedInputs),
         );
-        const blinder = new Blinder(pset, ownedInputs, zkpValidator, zkpGenerator);
+        const blinder = new Blinder(
+            pset,
+            ownedInputs,
+            zkpValidator,
+            zkpGenerator,
+        );
         const outputBlindingArgs = zkpGenerator.blindOutputs(
             pset,
             Pset.ECCKeysGenerator(secp.ecc),
@@ -840,17 +836,24 @@ let info: WalletInfo = {};
             const signature = ecclib.sign(
                 new Uint8Array(preimage),
                 new Uint8Array(
-                    Buffer.from(getPrivateKey(selectedUTXOs[index].N), "base64"),
+                    Buffer.from(
+                        getPrivateKey(selectedUTXOs[index].N),
+                        "base64",
+                    ),
                 ),
             );
 
             // Attach signature to the input as a partial signature
             const partialSig = {
                 pubkey: Buffer.from(selectedUTXOs[index].PubKey, "base64"),
-                signature: script.signature.encode(Buffer.from(signature), sighash),
+                signature: script.signature.encode(
+                    Buffer.from(signature),
+                    sighash,
+                ),
             };
 
-            pset.inputs[index].partialSigs = pset.inputs[index].partialSigs || [];
+            pset.inputs[index].partialSigs =
+                pset.inputs[index].partialSigs || [];
             pset.inputs[index].partialSigs.push(partialSig);
         });
 
@@ -885,6 +888,8 @@ let info: WalletInfo = {};
         let balBTC = 0;
         let balToken = 0;
 
+        log.info("Calculating reserves...");
+
         for (let i = 0; i < walletUTXOs.length; i++) {
             await fetchValue(walletUTXOs[i]);
             if (walletUTXOs[i].value > 0) {
@@ -914,15 +919,21 @@ let info: WalletInfo = {};
     // fetch wallet private and blinding keys for UTXOs
     async function getUTXOs() {
         try {
+            log.info("Fetching UTXOs and keys...");
+
             const response = await fetch(`${config.apiUrl}/utxos`, {
                 signal: AbortSignal.timeout(20000),
             });
             if (!response.ok) {
                 log.error("Failed to fetch UTXOs");
-                throw new Error(`Failed to fetch UTXOs: ${response.statusText}`);
+                throw new Error(
+                    `Failed to fetch UTXOs: ${response.statusText}`,
+                );
             }
 
             const base64data = await response.text();
+
+            log.info("Decrypting UTXOs and keys...");
             walletUTXOs = decryptUTXOs(base64data, "wallet");
         } catch (error) {
             log.error("Error fetching UTXOs:", error);
@@ -975,9 +986,12 @@ let info: WalletInfo = {};
     // returns a new bech32m address
     async function getNewAddress(label: string): Promise<string | null> {
         try {
-            const response = await fetch(`${config.apiUrl}/address?l=${label}`, {
-                signal: AbortSignal.timeout(3000),
-            });
+            const response = await fetch(
+                `${config.apiUrl}/address?l=${label}`,
+                {
+                    signal: AbortSignal.timeout(3000),
+                },
+            );
             if (!response.ok) {
                 log.error("Failed getting new address");
                 return null;
@@ -1006,7 +1020,7 @@ let info: WalletInfo = {};
             saveNewKeys();
 
             // refresh balances
-            calculateBalances();
+            await calculateBalances();
         }
 
         // is now the last UTXO in the wallet
@@ -1027,7 +1041,7 @@ let info: WalletInfo = {};
     ): { selectedUTXOs: UTXO[]; totalBTC: number; totalToken: number } {
         let totalBTC = 0;
         let totalToken = 0;
-        let selectedUTXOs: UTXO[] = [];
+        const selectedUTXOs: UTXO[] = [];
         let leftToAllocate = satsToken;
 
         // sort BTC by increasing value
@@ -1038,9 +1052,7 @@ let info: WalletInfo = {};
         // check if need to transfer Token
         if (satsToken > 0) {
             const tokenUTXOs = walletUTXOs
-                .filter(
-                    (utxo) => utxo.token === info.Token && utxo.value > 0,
-                ) // Filter by token and ensure `value` is defined
+                .filter((utxo) => utxo.token === info.Token && utxo.value > 0) // Filter by token and ensure `value` is defined
                 .sort((a, b) => (a.value || 0) - (b.value || 0)); // Sort by `value` ascending
 
             for (const utxo of tokenUTXOs) {
@@ -1055,7 +1067,9 @@ let info: WalletInfo = {};
 
             // re-sort to use the largest BTC UTXO to pay the network fee
             btcUTXOs = walletUTXOs
-                .filter((utxo) => utxo.token === "BTC" && utxo.value !== undefined) // Filter by token and ensure `value` is defined
+                .filter(
+                    (utxo) => utxo.token === "BTC" && utxo.value !== undefined,
+                ) // Filter by token and ensure `value` is defined
                 .sort((a, b) => (b.value || 0) - (a.value || 0)); // Sort by `value` descending
         }
 
@@ -1083,7 +1097,10 @@ let info: WalletInfo = {};
                 log.error("Failed to fetch Info");
                 throw new Error(`Failed to fetch Info: ${response.statusText}`);
             }
-            return await response.json();
+            // Type assertion to specify that response.json() should return a WalletInfo
+            const walletInfo: WalletInfo =
+                (await response.json()) as WalletInfo;
+            return walletInfo;
         } catch (error) {
             log.error("Error fetching Info:", error);
             throw error;

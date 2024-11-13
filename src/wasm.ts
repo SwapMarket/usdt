@@ -1,7 +1,20 @@
+import type { UTXO } from "./consts/Types";
+import { isUTXO } from "./consts/Types";
+
 const WASM_URL = "wasm/main.wasm";
 const WASM_EXEC_URL = "/usdt/wasm_exec.js";
 
-declare const Go: any;
+type GoConstructor = new () => {
+    argv: string[];
+    env: { [key: string]: string };
+    importObject: WebAssembly.Imports;
+    run(instance: WebAssembly.Instance): void;
+    exit(code: number): void;
+};
+
+// Declare `Go` with the constructor type
+declare const Go: GoConstructor;
+
 declare function goDecryptUTXOs(base64Data: string, target: string): string;
 declare function goGetBlindingKey(n: number): string;
 declare function goGetPrivateKey(n: number): string;
@@ -33,15 +46,22 @@ export async function loadWasm() {
 }
 
 // Repackage for usage in other files
-export function decryptUTXOs(base64Data: string, target: string): any {
-    return JSON.parse(goDecryptUTXOs(base64Data, target));
+export function decryptUTXOs(base64Data: string, target: string): UTXO[] {
+    const result = JSON.parse(goDecryptUTXOs(base64Data, target));
+
+    // Ensure `result` is an array of `UTXO` objects
+    if (Array.isArray(result) && result.every(isUTXO)) {
+        return result;
+    }
+
+    throw new Error("Invalid data format received from goDecryptUTXOs");
 }
 
-export function getBlindingKey(n: number): any {
+export function getBlindingKey(n: number): string {
     return goGetBlindingKey(n);
 }
 
-export function getPrivateKey(n: number): any {
+export function getPrivateKey(n: number): string {
     return goGetPrivateKey(n);
 }
 

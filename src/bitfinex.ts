@@ -35,7 +35,7 @@ export class BitfinexWS {
 
             this.ws.onerror = (error) => {
                 clearTimeout(timeout);
-                reject(new Error("WebSocket connection error"));
+                reject(error);
             };
         });
     }
@@ -76,24 +76,28 @@ export class BitfinexWS {
     private handleMessage(event: MessageEvent) {
         const data = JSON.parse(event.data);
 
-        // Ignore heartbeat and non-array messages
-        if (!Array.isArray(data) || data[1] === "hb") return;
-
         // Handle snapshot (initial order book data)
         if (Array.isArray(data) && Array.isArray(data[1])) {
             if (Array.isArray(data[1][0])) {
                 data[1].forEach((entry) => {
-                    this.processOrderBookUpdate(entry);
+                    // Ensure entry has exactly three elements before processing
+                    if (Array.isArray(entry) && entry.length === 3) {
+                        this.processOrderBookUpdate(
+                            entry as [number, number, number],
+                        );
+                    }
                 });
-            } else {
-                this.processOrderBookUpdate(data[1]);
+            } else if (data[1].length === 3) {
+                this.processOrderBookUpdate(
+                    data[1] as [number, number, number],
+                );
             }
             this.updateMidPrice();
         }
     }
 
     // Process order book updates and maintain the best bid/ask prices
-    private processOrderBookUpdate(update: any[]) {
+    private processOrderBookUpdate(update: [number, number, number]) {
         const [price, count, amount] = update;
 
         if (count > 0) {
@@ -131,7 +135,7 @@ export class BitfinexWS {
                 this.reconnectDelay * Math.pow(2, this.reconnectAttempts - 1);
             setTimeout(() => {
                 log.info(`Reconnect attempt ${this.reconnectAttempts}`);
-                this.connect().catch(log.error); // Attempt reconnection
+                this.connect().catch((error) => log.error(error)); // Attempt reconnection
             }, reconnectTimeout);
         } else {
             log.warn("Max reconnect attempts reached. Unable to reconnect.");
