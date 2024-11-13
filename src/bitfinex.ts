@@ -52,7 +52,7 @@ export class BitfinexWS {
 
     // Subscribe to the BTC/USDT order book
     private handleOpen() {
-        log.info("WebSocket connected.");
+        log.info("WebSocket connected");
 
         // Reset reconnect attempts upon successful connection
         this.reconnectAttempts = 0;

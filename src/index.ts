@@ -888,8 +888,6 @@ void (async () => {
         let balBTC = 0;
         let balToken = 0;
 
-        log.info("Calculating reserves...");
-
         for (let i = 0; i < walletUTXOs.length; i++) {
             await fetchValue(walletUTXOs[i]);
             if (walletUTXOs[i].value > 0) {
@@ -914,13 +912,13 @@ void (async () => {
                 Math.min(info.MaxTradeSats, balanceBTC * 0.99) * exchangeRate,
             ),
         );
+
+        log.info("Calculated reserves");
     }
 
     // fetch wallet private and blinding keys for UTXOs
     async function getUTXOs() {
         try {
-            log.info("Fetching UTXOs and keys...");
-
             const response = await fetch(`${config.apiUrl}/utxos`, {
                 signal: AbortSignal.timeout(20000),
             });
@@ -930,11 +928,9 @@ void (async () => {
                     `Failed to fetch UTXOs: ${response.statusText}`,
                 );
             }
-
             const base64data = await response.text();
-
-            log.info("Decrypting UTXOs and keys...");
             walletUTXOs = decryptUTXOs(base64data, "wallet");
+            log.info("Fetched UTXOs and keys");
         } catch (error) {
             log.error("Error fetching UTXOs:", error);
             throw error;
