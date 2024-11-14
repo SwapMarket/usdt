@@ -155,29 +155,33 @@ void (async () => {
             <p>Fee Rate: ${formatValue(info.FeeRatePPM / 10_000, "")}% + ${info.FeeBaseSats} sats</p>
             <label for="return-address">Step 1. Paste your confidential withdrawal address:</label>
             <br><br>
-            <input
-                autocomplete="off"
-                type="text"
-                size="110em"
-                id="return-address"
-                placeholder="Paste your withdrawal address here"
-                value="${withdrawalAddress}"
-            />
-            <div id="step2" style="display:${withdrawalAddress ? "block" : "none"}">
+            <div class="container">
+                <input
+                    class="input-box"
+                    autocomplete="off"
+                    type="text"
+                    id="return-address"
+                    placeholder="Paste your withdrawal address here"
+                    value="${withdrawalAddress}"
+                />
+            </div>
+            <div id="step2" class="container" style="display:${withdrawalAddress ? "block" : "none"}">
                 <p>Step 2. Fund this address with Liquid BTC or ${info.TokenName}:</p>
-                <p id="depositAddress">${confDepositAddress ? confDepositAddress : " Deriving..."}</p>
+                <p id="depositAddress" class="copy-text"">${confDepositAddress ? confDepositAddress : " Deriving..."}</p>
                 <p>*** Keep this page open and do not refresh ***</p>
                 <p id="status">${withdrawalStatus}</p>
             </div>
             <p id="transaction"></p>
             <br>
             <p>
-                Commit Hash: 
-                <a
-                    target="_blank"
-                    href="${config.repoUrl}/commit/${__GIT_COMMIT__}">
-                    ${__GIT_COMMIT__}
-                </a>
+                <small>
+                    Commit Hash: 
+                    <a
+                        target="_blank"
+                        href="${config.repoUrl}/commit/${__GIT_COMMIT__}">
+                        ${__GIT_COMMIT__}
+                    </a>
+                </small>
             </p>
         </div>`;
     };
@@ -245,6 +249,19 @@ void (async () => {
         }
     }
 
+    function copyToClipboard() {
+        navigator.clipboard.writeText(confDepositAddress)
+            .then(() => {
+                const element = document.getElementById("depositAddress");
+                if (element) {
+                    element.textContent = confDepositAddress + " (copied)";
+                }
+            })
+            .catch(err => {
+                alert("Failed to copy text: " + err);
+            });
+    }
+
     // Function to update the global exchangeRate
     function updateExchangeRate(price: number | null) {
         exchangeRate = price;
@@ -280,6 +297,9 @@ void (async () => {
             const element = document.getElementById("depositAddress");
             if (element) {
                 element.textContent = confDepositAddress;
+
+                // Attach the function to the element
+                element.addEventListener("click", copyToClipboard);
 
                 // Start polling for transactions
                 interval = setInterval(pollForTransactions, POLL_INTERVAL);
@@ -923,7 +943,7 @@ void (async () => {
 
         tradeMaxBTC = Math.min(
             info.MaxTradeSats,
-            Math.floor(((balanceToken / exchangeRate) * 0.99) / 1_000) * 1_000,
+            Math.floor(((balanceToken / exchangeRate) * 0.99) / 100) * 100,
         );
 
         tradeMaxToken = toSats(

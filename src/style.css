@@ -15,11 +15,11 @@
 
 a {
     font-weight: 500;
-    color: #646cff;
+    color: #5db2a5;
     text-decoration: inherit;
 }
 a:hover {
-    color: #535bf2;
+    color: #45847b;
 }
 
 body {
@@ -93,4 +93,26 @@ button:focus-visible {
     button {
         background-color: #f9f9f9;
     }
+}
+
+/* Centering the input box */
+.container {
+    display: flex;
+    justify-content: center; /* Centers horizontally */
+    align-items: center; /* Centers vertically */
+    width: 600px;
+}
+.input-box {
+    padding: 10px;
+    text-align: center;
+    width: 100%;
+}
+.copy-text {
+    color: #5db2a5;
+    cursor: pointer;
+    max-width: 600px; /* Limits width and forces text to wrap */
+    word-wrap: break-word; /* Breaks long words if needed */
+}
+.copy-text:hover {
+    color: #45847b;
 }
