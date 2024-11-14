@@ -101,18 +101,23 @@ button:focus-visible {
     justify-content: center; /* Centers horizontally */
     align-items: center; /* Centers vertically */
     width: 600px;
+    margin: 0 auto;
 }
+
 .input-box {
     padding: 10px;
     text-align: center;
-    width: 100%;
+    width: 100%; 
+    max-width: 580px; 
 }
+
 .copy-text {
     color: #5db2a5;
     cursor: pointer;
     max-width: 600px; /* Limits width and forces text to wrap */
     word-wrap: break-word; /* Breaks long words if needed */
 }
+
 .copy-text:hover {
     color: #45847b;
 }
