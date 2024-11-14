@@ -107,8 +107,8 @@ button:focus-visible {
 .input-box {
     padding: 10px;
     text-align: center;
-    width: 100%; 
-    max-width: 580px; 
+    width: 100%;
+    max-width: 580px;
 }
 
 .copy-text {

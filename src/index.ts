@@ -250,14 +250,15 @@ void (async () => {
     }
 
     function copyToClipboard() {
-        navigator.clipboard.writeText(confDepositAddress)
+        navigator.clipboard
+            .writeText(confDepositAddress)
             .then(() => {
                 const element = document.getElementById("depositAddress");
                 if (element) {
                     element.textContent = confDepositAddress + " (copied)";
                 }
             })
-            .catch(err => {
+            .catch((err) => {
                 alert("Failed to copy text: " + err);
             });
     }
