@@ -182,9 +182,12 @@ void (async () => {
 
     const HTML_BODY = () => {
         return `
+        <div class="btn btn-small">
+            ${config.network}
+        </div> 
         <div>
-            <p>* Testnet *</p>
-            <h1>Liquid ${config.titleTicker} Swaps</h1>   
+            <h1>Liquid ${config.titleTicker}</h1>   
+            <h2>Non-custodial automatic exchange</h2> 
             <p>Send L-BTC (min ${formatValue(tradeMinBTC, "sats")}, max ${formatValue(tradeMaxBTC, "sats")} sats) to receive ${info.TokenName}</p>
             <p>Send ${info.TokenName} (min $${formatValue(tradeMinToken / 100_000_000, "USD")}, max $${formatValue(tradeMaxToken / 100_000_000, "USD")}) to receive L-BTC</p>
             <p>Exchange Rate: 1 BTC = <span id="rate">Loading...</span> ${info.Token}</p>

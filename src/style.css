@@ -136,3 +136,12 @@ button:focus-visible {
 .copy-text:hover {
     color: #45847b;
 }
+
+.btn-small {
+    background-color: #ffffff;
+    color: #14283f;
+    border-radius: 7px;
+    padding: 0 6px;
+    cursor: pointer;
+    text-decoration: none;
+}
