@@ -190,7 +190,7 @@ void (async () => {
             <h2>Non-custodial automatic exchange</h2> 
             <p>Send L-BTC (min ${formatValue(tradeMinBTC, "sats")}, max ${formatValue(tradeMaxBTC, "sats")} sats) to receive ${info.TokenName}</p>
             <p>Send ${info.TokenName} (min $${formatValue(tradeMinToken / 100_000_000, "USD")}, max $${formatValue(tradeMaxToken / 100_000_000, "USD")}) to receive L-BTC</p>
-            <p>Exchange Rate: 1 BTC = <span id="rate">Loading...</span> ${info.Token}</p>
+            <h3>Exchange Rate: <span id="rate">Loading...</span></h3>
             <p>Fee Rate: ${formatValue(info.FeeRatePPM / 10_000, "")}% + ${info.FeeBaseSats} sats</p>
             <label for="return-address">Step 1. Paste your confidential withdrawal address:</label>
             <br><br>
