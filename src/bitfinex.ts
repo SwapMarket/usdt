@@ -1,5 +1,6 @@
 import log from "loglevel";
 
+const API_URL = "wss://api-pub.bitfinex.com/ws/2";
 export class BitfinexWS {
     private ws: WebSocket;
     private ticker: string;
@@ -15,38 +16,28 @@ export class BitfinexWS {
     constructor(ticker: string, onPriceUpdate: (price: number | null) => void) {
         this.ticker = ticker;
         this.onPriceUpdate = onPriceUpdate;
+        this.connect();
     }
 
     // Connect and wait for WebSocket connection
-    public async connect(): Promise<void> {
+    public connect() {
         this.ws = this.createWebSocket();
 
-        // Wait for WebSocket to open
-        await new Promise<void>((resolve, reject) => {
-            const timeout = setTimeout(() => {
-                reject(new Error("WebSocket connection timeout"));
-            }, 5000); // Set timeout for connection (e.g., 5 seconds)
+        this.ws.onopen = () => {
+            this.handleOpen();
+        };
 
-            this.ws.onopen = () => {
-                clearTimeout(timeout);
-                this.handleOpen();
-                resolve();
-            };
-
-            this.ws.onerror = (error) => {
-                clearTimeout(timeout);
-                reject(error);
-            };
-        });
+        this.ws.onerror = (error) => {
+            log.error(error);
+            this.handleConnectionLost();
+        };
     }
 
     // Helper to create a WebSocket with appropriate event handlers
     private createWebSocket(): WebSocket {
-        const ws = new WebSocket("wss://api-pub.bitfinex.com/ws/2");
-
+        const ws = new WebSocket(API_URL);
         ws.onmessage = (event) => this.handleMessage(event);
         ws.onclose = () => this.handleClose();
-
         return ws;
     }
 

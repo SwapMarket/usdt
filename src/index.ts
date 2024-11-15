@@ -47,6 +47,7 @@ import {
 // await new Promise((f) => setTimeout(f, 10000));
 
 // constants
+const FEE_RESERVE = 100; // sats
 const POLL_INTERVAL = 10_000; // frequency of mempool transaction polling, ms
 const ERROR_MESSAGE = `
     <div style="text-align: center;">
@@ -71,7 +72,7 @@ let withdrawalAddress = "";
 let btcChangeAddress = "";
 let tokenChangeAddress = "";
 let lastSeenTxId = "";
-let withdrawalStatus = "Awaiting deposit...";
+let withdrawalStatus = "*** Keep this page open and do not refresh ***<br><br>Awaiting deposit...";
 let interval: NodeJS.Timeout;
 let assetIdMap: Map<string, string>;
 let tradeMinBTC = 0; // denomitaned in sats
@@ -81,12 +82,10 @@ let tradeMaxToken = 0; // denomitaned in sats
 let balanceBTC = 0; // denomitaned in sats
 let balanceToken = 0; // denomitaned in sats
 
-// fetched encrypted from a wallet API
+// fetched from a wallet API
 let walletUTXOs: UTXO[] | null = null;
 let depositKeys: UTXO | null = null;
-
-// to allow page to load
-let info: WalletInfo = {};
+let info: WalletInfo | null = null;
 
 // Avoids top-level await
 void (async () => {
@@ -107,17 +106,61 @@ void (async () => {
         }
 
         // Initialize the Bitfinex WebSocket with callback to update exchangeRate
-        const bitfinexWS = new BitfinexWS(config.bfxTicker, updateExchangeRate);
+        new BitfinexWS(config.bfxTicker, updateExchangeRate);
 
-        // Get backend info
+        // Get wallet info
         info = await getInfo();
 
-        // Attempt to connect and wait until connection is established
-        await bitfinexWS.connect();
+        // assume what's reported to validate later
+        balanceBTC = info.MaxSellBTC;
+        balanceToken = info.MaxSellToken;
+        tradeMinBTC = info.MinSellBTC;
+        tradeMinToken = info.MinSellToken;
+
+        // assume exchange rate from min values for quick estimate
+        setTradeLimits(tradeMinToken/ tradeMinBTC);
 
         // initiate WASM mobule
-        await loadWasm();
-        log.info("WASM and Go runtime initialized");
+        loadWasm()
+            .then(() => {
+                log.info("WASM and Go runtime initialized");
+                // Fetch UTXOs from API and load private keys into a Go WASM binary
+                getUTXOs()
+                    .then(() => {
+                        if (!walletUTXOs) {
+                            log.error("UTXOs are blank!");
+                            balanceBTC = 0;
+                            balanceToken = 0;
+                            hasError = true;
+                        } else {
+                            validateReserves()
+                                .then(() => {
+                                    if (
+                                        tradeMaxBTC < info.MaxSellBTC ||
+                                        tradeMaxToken < info.MaxSellToken
+                                    ) {
+                                        // refresh screen with smallel limits
+                                        renderPage();
+                                    }
+                                })
+                                .catch((error) => {
+                                    log.error(
+                                        "Failed to validate reserves",
+                                        error,
+                                    );
+                                    hasError = true;
+                                });
+                        }
+                    })
+                    .catch((error) => {
+                        log.error("Failed to fetch UTXOs", error);
+                        hasError = true;
+                    });
+            })
+            .catch((error) => {
+                log.error("Failed to initialize WASM and Go runtime", error);
+                hasError = true;
+            });
 
         // initialize asset lookup map
         if (!assetIdMap) {
@@ -131,14 +174,6 @@ void (async () => {
         secp = await zkp();
         confi = new confidential.Confidential(secp);
         zkpValidator = new ZKPValidator(secp);
-
-        // Fetch UTXOs from API and load keys into a Go WASM binary
-        await getUTXOs();
-        if (!walletUTXOs) {
-            hasError = true;
-        } else {
-            await calculateBalances();
-        }
     } catch (error) {
         log.error("Failed to connect:", error);
         hasError = true;
@@ -168,10 +203,8 @@ void (async () => {
             <div id="step2" class="container" style="display:${withdrawalAddress ? "block" : "none"}">
                 <p>Step 2. Fund this address with Liquid BTC or ${info.TokenName}:</p>
                 <p id="depositAddress" class="copy-text"">${confDepositAddress ? confDepositAddress : " Deriving..."}</p>
-                <p>*** Keep this page open and do not refresh ***</p>
                 <p id="status">${withdrawalStatus}</p>
             </div>
-            <p id="transaction"></p>
             <br>
             <p>
                 <small>
@@ -187,67 +220,6 @@ void (async () => {
     };
 
     renderPage();
-
-    // add listener to the input field
-    if (!hasError) {
-        const inputField = document.getElementById("return-address");
-        const contentToToggle = document.getElementById("step2");
-
-        // Function to toggle visibility based on input value
-        async function toggleContentVisibility() {
-            // verify address
-            if (inputField) {
-                const addr = (inputField as HTMLInputElement).value;
-                if (addr) {
-                    try {
-                        if (address.isConfidential(addr)) {
-                            contentToToggle.style.display = "block";
-                            withdrawalAddress = addr;
-                            setInnerHTML("transaction", "");
-                            await showDepositAddress();
-
-                            // Generate return addresses for change
-                            if (!btcChangeAddress) {
-                                btcChangeAddress =
-                                    (await getNewAddress("BTC change")) ||
-                                    confDepositAddress;
-                            }
-
-                            if (!tokenChangeAddress) {
-                                tokenChangeAddress =
-                                    (await getNewAddress(
-                                        `${info.Token} change`,
-                                    )) || btcChangeAddress;
-                            }
-
-                            return;
-                        }
-                    } catch (error) {
-                        log.error(error);
-                    }
-
-                    // invalid withdrawal address
-                    setInnerHTML(
-                        "transaction",
-                        `Please provide confidential withdrawal address!`,
-                    );
-                    return;
-                }
-            }
-
-            contentToToggle.style.display = "none";
-        }
-
-        if (inputField) {
-            // Add event listener for the 'change' event
-            inputField.addEventListener("change", toggleContentVisibility);
-
-            // Listen for paste events as well
-            inputField.addEventListener("paste", () => {
-                setTimeout(toggleContentVisibility, 0); // Delay to ensure the pasted content is read
-            });
-        }
-    }
 
     function copyToClipboard() {
         navigator.clipboard
@@ -320,6 +292,60 @@ void (async () => {
         document.querySelector<HTMLDivElement>("#app")!.innerHTML = hasError
             ? ERROR_MESSAGE
             : HTML_BODY();
+
+        // add listener to the input field
+        if (!hasError) {
+            const inputField = document.getElementById("return-address");
+            const contentToToggle = document.getElementById("step2");
+
+            // Function to toggle visibility based on input value
+            async function toggleContentVisibility() {
+                // verify address
+                if (inputField) {
+                    const addr = (inputField as HTMLInputElement).value;
+                    if (addr) {
+                        try {
+                            if (address.isConfidential(addr)) {
+                                contentToToggle.style.display = "block";
+                                withdrawalAddress = addr;
+                                await showDepositAddress();
+
+                                // Generate return addresses for change
+                                if (!btcChangeAddress) {
+                                    btcChangeAddress =
+                                        (await getNewAddress("BTC change")) ||
+                                        confDepositAddress;
+                                }
+
+                                if (!tokenChangeAddress) {
+                                    tokenChangeAddress =
+                                        (await getNewAddress(
+                                            `${info.Token} change`,
+                                        )) || btcChangeAddress;
+                                }
+
+                                return;
+                            }
+                        } catch (error) {
+                            log.error(error);
+                        }
+                        return;
+                    }
+                }
+
+                contentToToggle.style.display = "none";
+            }
+
+            if (inputField) {
+                // Add event listener for the 'change' event
+                inputField.addEventListener("change", toggleContentVisibility);
+
+                // Listen for paste events as well
+                inputField.addEventListener("paste", () => {
+                    setTimeout(toggleContentVisibility, 0); // Delay to ensure the pasted content is read
+                });
+            }
+        }
     }
 
     async function unblindUTXO(
@@ -443,8 +469,7 @@ void (async () => {
                             withdrawalAddress == confDepositAddress
                         ) {
                             // invalid withdrawal address
-                            setInnerHTML(
-                                "transaction",
+                            setStatus(
                                 `Please provide confidential withdrawal address!`,
                             );
 
@@ -508,7 +533,7 @@ void (async () => {
                             if (withdrawToken > withdrawMaxToken) {
                                 // wants to withdraw too much Token, refund some BTC
                                 withdrawBTC = Math.min(
-                                    balanceBTC - 2000,
+                                    balanceBTC - FEE_RESERVE,
                                     Math.floor(
                                         (withdrawToken - withdrawMaxToken) /
                                             bumpedRate,
@@ -562,7 +587,6 @@ void (async () => {
                             `Sending ${textAmount} to ${address.fromConfidential(withdrawalAddress).unconfidentialAddress}`,
                             true,
                         );
-                        setInnerHTML("transaction", ``);
 
                         const success = await processWithdrawal(
                             withdrawalAddress,
@@ -575,13 +599,11 @@ void (async () => {
                             clearInterval(interval);
                         } else {
                             // refresh wallet UTXOs to try again
-                            setInnerHTML(
-                                "transaction",
-                                `<br><br>Refreshing wallet balances...`,
-                                true,
-                            );
+                            setStatus(`Refreshing wallet balances...`, true);
                             //await getUTXOs();
-                            await calculateBalances();
+                            await validateReserves();
+                            // try again
+                            lastSeenTxId = "";
                         }
                     } else {
                         // ignore the deposit
@@ -674,20 +696,16 @@ void (async () => {
                 log.error("Failed to unblind output:", error);
             }
 
-            setInnerHTML(
-                "transaction",
+            setStatus(
                 `TxId: <a href="${config.blockExplorerUrl}/tx/${result}${blinded}" target="_blank">${result}</a>`,
-            );
-
-            setInnerHTML(
-                "transaction",
-                `<br><br>Refresh the page to do another swap`,
                 true,
             );
 
+            setStatus(`Refresh the page to do another swap`, true);
+
             return true;
         } else {
-            setInnerHTML("transaction", `Error: ${result}`);
+            setStatus(`Error: ${result}`, true);
             return false;
         }
     }
@@ -732,6 +750,24 @@ void (async () => {
         const counter = new Counter(numBlinders);
 
         if (totalToken > 0) {
+            const changeToken = totalToken - satsToken;
+
+             if (changeToken > config.dustToken) {
+                // Add the TOKEN change output
+                outs.push({
+                    asset: assetIdMap.get(info.Token)!,
+                    amount: changeToken,
+                    script: address.toOutputScript(tokenChangeAddress, network),
+                    blinderIndex: counter.iterate(),
+                    blindingPublicKey:
+                        address.fromConfidential(tokenChangeAddress)
+                            .blindingKey,
+                });
+            } else {
+                // donate to client
+                satsToken += changeToken;
+            }
+
             if (satsToken > 0) {
                 // add TOKEN output
                 outs.push({
@@ -743,36 +779,12 @@ void (async () => {
                         address.fromConfidential(toAddress).blindingKey,
                 });
             }
-
-            // Add the TOKEN change output
-            if (totalToken - satsToken > config.dustToken) {
-                outs.push({
-                    asset: assetIdMap.get(info.Token)!,
-                    amount: totalToken - satsToken,
-                    script: address.toOutputScript(tokenChangeAddress, network),
-                    blinderIndex: counter.iterate(),
-                    blindingPublicKey:
-                        address.fromConfidential(tokenChangeAddress)
-                            .blindingKey,
-                });
-            }
         }
 
-        if (satsBTC > 0) {
-            // add BTC output and change
-            outs.push({
-                asset: assetIdMap.get("BTC")!,
-                amount: satsBTC,
-                script: address.toOutputScript(toAddress, network),
-                blinderIndex: counter.iterate(),
-                blindingPublicKey:
-                    address.fromConfidential(toAddress).blindingKey,
-            });
-        }
-
-        // Add the change output in BTC
+        
         const changeBTC = totalBTC - satsBTC - satsFee;
         if (changeBTC > config.dustBTC) {
+            // Add the change output in BTC
             outs.push({
                 asset: assetIdMap.get("BTC")!,
                 amount: changeBTC,
@@ -780,6 +792,21 @@ void (async () => {
                 blinderIndex: counter.iterate(),
                 blindingPublicKey:
                     address.fromConfidential(btcChangeAddress).blindingKey,
+            });
+        } else {
+            // add dust change to the client amount
+            satsBTC += changeBTC;
+        }
+        
+        if (satsBTC > 0) {
+            // add BTC output to client
+            outs.push({
+                asset: assetIdMap.get("BTC")!,
+                amount: satsBTC,
+                script: address.toOutputScript(toAddress, network),
+                blinderIndex: counter.iterate(),
+                blindingPublicKey:
+                    address.fromConfidential(toAddress).blindingKey,
             });
         }
 
@@ -847,7 +874,7 @@ void (async () => {
                     .join("");
             };
 
-            // find index of the output that pays to the withdrawal address
+            // find the index of the output that pays to the client
             for (const [index, output] of outs.entries()) {
                 if (toHexString(output.script) === toHexString(script)) {
                     mainOutput = index;
@@ -855,7 +882,7 @@ void (async () => {
                 }
             }
 
-            // find the nonce of the main output
+            // find the nonce of the client output
             for (const arg of outputBlindingArgs) {
                 if (arg.index == mainOutput) {
                     mainNonce = arg.nonce;
@@ -924,7 +951,7 @@ void (async () => {
         return result;
     }
 
-    async function calculateBalances() {
+    async function validateReserves() {
         let balBTC = 0;
         let balToken = 0;
 
@@ -942,25 +969,36 @@ void (async () => {
         balanceBTC = balBTC;
         balanceToken = balToken;
 
-        tradeMaxBTC = Math.min(
-            info.MaxTradeSats,
-            Math.floor(((balanceToken / exchangeRate) * 0.99) / 100) * 100,
-        );
+        log.info("Validated reserves");
 
-        tradeMaxToken = toSats(
+        while (!exchangeRate) {
+            log.warn("No Bitfinex price feed, wait 5 seconds.");
+            // wait for price feed
+            await new Promise((f) => setTimeout(f, 5000));
+        }
+
+        setTradeLimits(exchangeRate);
+    }
+
+    function setTradeLimits(exchangeRate: number) {
+        tradeMaxBTC =
+            // round down to 1000 sats and assume 1% haircut to token balance
             Math.floor(
-                fromSats(
-                    Math.min(info.MaxTradeSats, balanceBTC * 0.99) *
-                        exchangeRate,
-                ),
-            ),
-        );
+                Math.min(info.MaxSellToken, balanceToken * 0.99) /
+                    exchangeRate /
+                    1000,
+            ) * 1000;
 
-        tradeMinBTC = config.dustBTC * 2;
-
-        tradeMinToken = tradeMinBTC * exchangeRate;
-
-        log.info("Calculated reserves");
+        tradeMaxToken =
+            // round down to $100 and assume 1% haircut to BTC balance
+            toSats(
+                Math.floor(
+                    fromSats(
+                        Math.min(info.MaxSellBTC, balanceBTC * 0.99) *
+                            exchangeRate,
+                    ) / 100,
+                ) * 100,
+            );
     }
 
     // fetch wallet private and blinding keys for UTXOs
@@ -1184,21 +1222,11 @@ void (async () => {
     }
 
     function setStatus(status: string, append: boolean = false) {
-        withdrawalStatus = status;
-        setInnerHTML("status", (append ? "<br><br>" : "") + status, append);
-    }
-
-    function setInnerHTML(id: string, text: string, append: boolean = false) {
-        const element = document.getElementById(id);
-        if (element) {
-            if (append) {
-                element.innerHTML += text;
-            } else {
-                element.innerHTML = text;
-            }
+        if (append) {
+            withdrawalStatus += "<br><br>" + status;
         } else {
-            // display in console if unable to render
-            log.info(id, text);
+            withdrawalStatus = status;
         }
+        renderPage();
     }
 })();

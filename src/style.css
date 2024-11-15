@@ -17,6 +17,9 @@ a {
     font-weight: 500;
     color: #5db2a5;
     text-decoration: inherit;
+    width: 100%;
+    max-width: 600px; /* Limits width and forces text to wrap */
+    word-wrap: break-word; /* Breaks long words if needed */
 }
 a:hover {
     color: #45847b;
@@ -31,8 +34,16 @@ body {
 }
 
 h1 {
-    font-size: 3.2em;
-    line-height: 1.1;
+    font-size: 64px;
+    line-height: 1.05;
+    background: linear-gradient(
+        20deg,
+        rgb(49, 245, 160) 10%,
+        rgb(0, 88, 255) 100%
+    );
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent; /* Ensures gradient shows */
+    margin: 24px 12px 12px;
 }
 
 #app {
@@ -100,11 +111,13 @@ button:focus-visible {
     display: flex;
     justify-content: center; /* Centers horizontally */
     align-items: center; /* Centers vertically */
-    width: 600px;
+    width: 80%;
+    max-width: 600px;
     margin: 0 auto;
 }
 
 .input-box {
+    font-weight: 500;
     padding: 10px;
     text-align: center;
     width: 100%;
@@ -114,6 +127,7 @@ button:focus-visible {
 .copy-text {
     color: #5db2a5;
     cursor: pointer;
+    width: 100%;
     max-width: 600px; /* Limits width and forces text to wrap */
     word-wrap: break-word; /* Breaks long words if needed */
 }
