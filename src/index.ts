@@ -187,11 +187,11 @@ void (async () => {
         </div> 
         <div>
             <h1>Liquid ${config.titleTicker}</h1>   
-            <h2>Non-custodial automatic exchange</h2> 
+            <h3>Non-custodial automatic exchange</h3> 
             <p>Send L-BTC (min ${formatValue(tradeMinBTC, "sats")}, max ${formatValue(tradeMaxBTC, "sats")} sats) to receive ${info.TokenName}</p>
             <p>Send ${info.TokenName} (min $${formatValue(tradeMinToken / 100_000_000, "USD")}, max $${formatValue(tradeMaxToken / 100_000_000, "USD")}) to receive L-BTC</p>
-            <h3>Exchange Rate: <span id="rate">Loading...</span></h3>
-            <p>Fee Rate: ${formatValue(info.FeeRatePPM / 10_000, "")}% + ${info.FeeBaseSats} sats</p>
+            <h2><span id="rate">Loading...</span> BTC/${info.Token}</h2>
+            <p>Fee: ${formatValue(info.FeeRatePPM / 10_000, "")}% + ${info.FeeBaseSats} sats</p>
             <label for="return-address">Step 1. Paste your confidential withdrawal address:</label>
             <br><br>
             <div class="container">
