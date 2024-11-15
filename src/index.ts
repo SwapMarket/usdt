@@ -72,7 +72,8 @@ let withdrawalAddress = "";
 let btcChangeAddress = "";
 let tokenChangeAddress = "";
 let lastSeenTxId = "";
-let withdrawalStatus = "*** Keep this page open and do not refresh ***<br><br>Awaiting deposit...";
+let withdrawalStatus =
+    "*** Keep this page open and do not refresh ***<br><br>Awaiting deposit...";
 let interval: NodeJS.Timeout;
 let assetIdMap: Map<string, string>;
 let tradeMinBTC = 0; // denomitaned in sats
@@ -118,7 +119,7 @@ void (async () => {
         tradeMinToken = info.MinSellToken;
 
         // assume exchange rate from min values for quick estimate
-        setTradeLimits(tradeMinToken/ tradeMinBTC);
+        setTradeLimits(tradeMinToken / tradeMinBTC);
 
         // initiate WASM mobule
         loadWasm()
@@ -752,7 +753,7 @@ void (async () => {
         if (totalToken > 0) {
             const changeToken = totalToken - satsToken;
 
-             if (changeToken > config.dustToken) {
+            if (changeToken > config.dustToken) {
                 // Add the TOKEN change output
                 outs.push({
                     asset: assetIdMap.get(info.Token)!,
@@ -781,7 +782,6 @@ void (async () => {
             }
         }
 
-        
         const changeBTC = totalBTC - satsBTC - satsFee;
         if (changeBTC > config.dustBTC) {
             // Add the change output in BTC
@@ -797,7 +797,7 @@ void (async () => {
             // add dust change to the client amount
             satsBTC += changeBTC;
         }
-        
+
         if (satsBTC > 0) {
             // add BTC output to client
             outs.push({
