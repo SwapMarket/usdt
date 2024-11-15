@@ -44,7 +44,7 @@ import {
 } from "./wasm";
 
 // wait 10 seconds to connect debugger
-// await new Promise((f) => setTimeout(f, 10000));
+//await new Promise((f) => setTimeout(f, 10000));
 
 // constants
 const FEE_RESERVE = 100; // sats
@@ -197,7 +197,7 @@ void (async () => {
                     autocomplete="off"
                     type="text"
                     id="return-address"
-                    placeholder="Paste your withdrawal address here"
+                    placeholder="Blinded Liquid Address"
                     value="${withdrawalAddress}"
                 />
             </div>
@@ -698,7 +698,7 @@ void (async () => {
             }
 
             setStatus(
-                `TxId: <a href="${config.blockExplorerUrl}/tx/${result}${blinded}" target="_blank">${result}</a>`,
+                `Withdrawal TxId: <a href="${config.blockExplorerUrl}/tx/${result}${blinded}" target="_blank">${result}</a>`,
                 true,
             );
 
@@ -982,19 +982,19 @@ void (async () => {
 
     function setTradeLimits(exchangeRate: number) {
         tradeMaxBTC =
-            // round down to 1000 sats and assume 1% haircut to token balance
+            // round down to 1000 sats
             Math.floor(
-                Math.min(info.MaxSellToken, balanceToken * 0.99) /
+                Math.min(info.MaxSellToken, balanceToken) /
                     exchangeRate /
                     1000,
             ) * 1000;
 
         tradeMaxToken =
-            // round down to $100 and assume 1% haircut to BTC balance
+            // round down to $100
             toSats(
                 Math.floor(
                     fromSats(
-                        Math.min(info.MaxSellBTC, balanceBTC * 0.99) *
+                        Math.min(info.MaxSellBTC, balanceBTC) *
                             exchangeRate,
                     ) / 100,
                 ) * 100,

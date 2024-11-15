@@ -125,6 +125,7 @@ button:focus-visible {
 }
 
 .copy-text {
+    font-weight: 500;
     color: #5db2a5;
     cursor: pointer;
     width: 100%;
