@@ -984,9 +984,7 @@ void (async () => {
         tradeMaxBTC =
             // round down to 1000 sats
             Math.floor(
-                Math.min(info.MaxSellToken, balanceToken) /
-                    exchangeRate /
-                    1000,
+                Math.min(info.MaxSellToken, balanceToken) / exchangeRate / 1000,
             ) * 1000;
 
         tradeMaxToken =
@@ -994,8 +992,7 @@ void (async () => {
             toSats(
                 Math.floor(
                     fromSats(
-                        Math.min(info.MaxSellBTC, balanceBTC) *
-                            exchangeRate,
+                        Math.min(info.MaxSellBTC, balanceBTC) * exchangeRate,
                     ) / 100,
                 ) * 100,
             );
