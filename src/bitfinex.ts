@@ -126,7 +126,7 @@ export class BitfinexWS {
                 this.reconnectDelay * Math.pow(2, this.reconnectAttempts - 1);
             setTimeout(() => {
                 log.info(`Reconnect attempt ${this.reconnectAttempts}`);
-                this.connect().catch((error) => log.error(error)); // Attempt reconnection
+                this.connect(); // Attempt reconnection
             }, reconnectTimeout);
         } else {
             log.warn("Max reconnect attempts reached. Unable to reconnect.");
