@@ -1,4 +1,5 @@
-import type { UTXO } from "./consts/Types";
+import log from "loglevel";
+import type { UTXO, WalletInfo } from "./consts/Types";
 import { isUTXO } from "./consts/Types";
 
 const WASM_URL = "wasm/main.wasm";
@@ -15,7 +16,10 @@ type GoConstructor = new () => {
 // Declare `Go` with the constructor type
 declare const Go: GoConstructor;
 
+declare function goEncryptRequest(request: string, arg: string): string;
 declare function goDecryptUTXOs(base64Data: string, target: string): string;
+declare function goDecryptInfo(base64Data: string): string;
+declare function goDecryptString(base64Data: string): string;
 declare function goGetBlindingKey(n: number): string;
 declare function goGetPrivateKey(n: number): string;
 declare function goSaveNewKeys(): string;
@@ -45,8 +49,17 @@ export async function loadWasm() {
     go.run(wasm);
 }
 
-// Repackage for usage in other files
-export function decryptUTXOs(base64Data: string, target: string): UTXO[] {
+export function encryptRequest(request: string, arg: string): string {
+    return goEncryptRequest(request, arg);
+}
+
+export function decryptUTXOs(base64Data: string, target: string): UTXO[] | null {
+
+    if (base64Data == 'stale timestamp') {
+        log.error("Please synchronize your clock")
+        return null
+    }
+
     const result = JSON.parse(goDecryptUTXOs(base64Data, target));
 
     // Ensure `result` is an array of `UTXO` objects
@@ -55,6 +68,25 @@ export function decryptUTXOs(base64Data: string, target: string): UTXO[] {
     }
 
     throw new Error("Invalid data format received from goDecryptUTXOs");
+}
+
+export function decryptInfo(base64Data: string): WalletInfo | null {
+    if (base64Data == 'stale timestamp') {
+        log.error("Please synchronize your clock")
+        return null
+    }
+    
+    const jsonString = goDecryptInfo(base64Data);
+    const walletInfo = JSON.parse(jsonString) as WalletInfo;
+    return walletInfo;
+}
+
+export function decryptString(base64Data: string): string {
+    if (base64Data == 'stale timestamp') {
+        log.error("Please synchronize your clock")
+        return ""
+    }
+    return goDecryptString(base64Data);
 }
 
 export function getBlindingKey(n: number): string {

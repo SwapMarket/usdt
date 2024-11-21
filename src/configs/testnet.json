@@ -3,7 +3,6 @@
     "loglevel": "debug",
     "apiUrl": "https://api.swapmarket.online",
     "blockExplorerUrl": "https://blockstream.info/liquidtestnet",
-    "bfxTicker": "tBTCUST",
     "titleTicker": "BTC/USDt",
     "dustBTC": 500,
     "dustToken": 2000000

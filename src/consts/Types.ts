@@ -15,10 +15,11 @@ export declare type WalletInfo = {
     Token: string; // is 'USD'
     TokenId: string; // asset id on Liduid network
     TokenName: string; // long name
-    MaxSellBTC: number; // trade limit in BTC sats
-    MaxSellToken: number; // trade limit in BTC sats
-    MinSellBTC: number; // trade limit in BTC sats
-    MinSellToken: number; // trade limit in BTC sats
+    Ticker: string; // Bfx ticker
+    MaxBuyBTC: number; // trade limit in BTC sats
+    MaxBuyToken: number; // trade limit in BTC sats
+    MinBuyBTC: number; // trade limit in BTC sats
+    MinBuyToken: number; // trade limit in BTC sats
     FeeRatePPM: number; // traning fee as PPM
     FeeBaseSats: number; // fee base in sats to cover network cost
 };

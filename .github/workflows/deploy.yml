@@ -50,7 +50,8 @@ jobs:
 
       - name: Build
         env:
-          PRIV_KEY: ${{ secrets.PRIV_KEY }}  # Pull the secret from GitHub
+          PRIV_KEY: ${{ secrets.PRIV_KEY }}
+          PUB_KEY: ${{ secrets.PUB_KEY }}
         run: npm run build
 
       - name: Setup Pages

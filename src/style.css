@@ -18,8 +18,7 @@ a {
     color: #5db2a5;
     text-decoration: inherit;
     width: 100%;
-    max-width: 600px; /* Limits width and forces text to wrap */
-    word-wrap: break-word; /* Breaks long words if needed */
+    word-wrap: break-word;
 }
 a:hover {
     color: #45847b;
@@ -41,8 +40,9 @@ h1 {
         rgb(49, 245, 160) 10%,
         rgb(0, 88, 255) 100%
     );
+    background-clip: text;
     -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent; /* Ensures gradient shows */
+    -webkit-text-fill-color: transparent;
     margin: 24px 12px 12px;
 }
 
@@ -111,14 +111,15 @@ button:focus-visible {
     display: flex;
     justify-content: center; /* Centers horizontally */
     align-items: center; /* Centers vertically */
-    width: 80%;
+    width: 90%;
     max-width: 600px;
     margin: 0 auto;
 }
 
 .input-box {
     width: 100%;
-    color: rgba(255, 255, 255, 0.3);
+    max-width: 100%;
+    color: rgb(255, 255, 255);
     background: rgba(0, 0, 0, 0.3);
     border: 1px dashed rgba(255, 255, 255, 0.3);
     border-radius: 10px;
@@ -126,7 +127,7 @@ button:focus-visible {
     font-weight: normal;
     text-align: center;
     margin: 0;
-    padding: 7px 8px;
+    padding: 10px;
     box-sizing: border-box;
 }
 
@@ -135,8 +136,7 @@ button:focus-visible {
     color: #5db2a5;
     cursor: pointer;
     width: 100%;
-    max-width: 600px; /* Limits width and forces text to wrap */
-    word-wrap: break-word; /* Breaks long words if needed */
+    word-wrap: break-word;
 }
 
 .copy-text:hover {

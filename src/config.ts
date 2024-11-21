@@ -12,7 +12,6 @@ export type Config = {
     network?: "mainnet" | "testnet" | "regtest";
     blockExplorerUrl?: string;
     apiUrl?: string;
-    bfxTicker?: string;
     titleTicker?: string;
     dustBTC?: number;
     dustToken?: number;

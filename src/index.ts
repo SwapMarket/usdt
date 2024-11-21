@@ -36,7 +36,10 @@ import {
     toSats,
 } from "./utils";
 import {
+    decryptInfo,
+    decryptString,
     decryptUTXOs,
+    encryptRequest,
     getBlindingKey,
     getPrivateKey,
     loadWasm,
@@ -48,16 +51,18 @@ import {
 
 // constants
 const FEE_RESERVE = 100; // sats
-const POLL_INTERVAL = 10_000; // frequency of mempool transaction polling, ms
+const POLL_INTERVAL = 5_000; // frequency of mempool transaction polling, ms
 const ERROR_MESSAGE = `
     <div style="text-align: center;">
         <h2>Error connecting to the exchange</h2>
         <p>We're experiencing issues loading the necessary information. Please try again later.</p>
+        <p>You may check browser's console log for more details.</p>
     </div>`;
 
 // Global variables
 let network: networks.Network;
 let exchangeRate: number | null = null;
+let exchangeRateText = "Loading...";
 let hasError = false;
 let withdrawalPending: boolean = false;
 let withdrawalComplete: boolean = false;
@@ -106,25 +111,52 @@ void (async () => {
                 network = networks.regtest;
         }
 
-        // Initialize the Bitfinex WebSocket with callback to update exchangeRate
-        new BitfinexWS(config.bfxTicker, updateExchangeRate);
-
-        // Get wallet info
-        info = await getInfo();
-
-        // assume what's reported to validate later
-        balanceBTC = info.MaxSellBTC;
-        balanceToken = info.MaxSellToken;
-        tradeMinBTC = info.MinSellBTC;
-        tradeMinToken = info.MinSellToken;
-
-        // assume exchange rate from min values for quick estimate
-        setTradeLimits(tradeMinToken / tradeMinBTC);
+        log.debug("Network:", config.network);
 
         // initiate WASM mobule
         loadWasm()
             .then(() => {
                 log.info("WASM and Go runtime initialized");
+
+                // Get wallet info
+                getInfo()
+                    .then((i) => {
+                        if (!i) {
+                            hasError = true;
+                        } else {
+                            info = i;
+                            log.info("Fetched wallet info");
+
+                            // assume exchange rate from min values for quick estimate
+                            const assumedFX = info.MinBuyToken / info.MinBuyBTC;
+                            balanceBTC = info.MaxBuyToken / assumedFX;
+                            balanceToken = info.MaxBuyBTC * assumedFX;
+                            tradeMinBTC = info.MinBuyBTC;
+                            // round to $1
+                            tradeMinToken = toSats(
+                                Math.round(fromSats(info.MinBuyToken)),
+                            );
+                            setTradeLimits(assumedFX);
+
+                            // Initialize Bitfinex WebSocket with callback to update exchangeRate
+                            new BitfinexWS(info.Ticker, updateExchangeRate);
+
+                            // initialize asset lookup map
+                            if (!assetIdMap) {
+                                assetIdMap = new Map<string, string>([
+                                    ["BTC", network.assetHash],
+                                    [info.Token, info.TokenId],
+                                ]);
+                            }
+                        }
+
+                        renderPage();
+                    })
+                    .catch((error) => {
+                        log.error("Failed to load wallet info", error);
+                        hasError = true;
+                    });
+
                 // Fetch UTXOs from API and load private keys into a Go WASM binary
                 getUTXOs()
                     .then(() => {
@@ -134,13 +166,14 @@ void (async () => {
                             balanceToken = 0;
                             hasError = true;
                         } else {
+                            // verify wallet balances
                             validateReserves()
                                 .then(() => {
                                     if (
-                                        tradeMaxBTC < info.MaxSellBTC ||
-                                        tradeMaxToken < info.MaxSellToken
+                                        tradeMaxBTC != info.MaxBuyBTC ||
+                                        tradeMaxToken != info.MaxBuyToken
                                     ) {
-                                        // refresh screen with smallel limits
+                                        // refresh screen with corrected limits
                                         renderPage();
                                     }
                                 })
@@ -163,18 +196,17 @@ void (async () => {
                 hasError = true;
             });
 
-        // initialize asset lookup map
-        if (!assetIdMap) {
-            assetIdMap = new Map<string, string>([
-                ["BTC", network.assetHash],
-                [info.Token, info.TokenId],
-            ]);
-        }
-
         // Initialize blinder classes
-        secp = await zkp();
-        confi = new confidential.Confidential(secp);
-        zkpValidator = new ZKPValidator(secp);
+        zkp()
+            .then((s) => {
+                secp = s;
+                confi = new confidential.Confidential(secp);
+                zkpValidator = new ZKPValidator(secp);
+            })
+            .catch((error) => {
+                log.error("Failed to initialize WASM and Go runtime", error);
+                hasError = true;
+            });
     } catch (error) {
         log.error("Failed to connect:", error);
         hasError = true;
@@ -190,8 +222,8 @@ void (async () => {
             <h3>Non-custodial automatic exchange</h3> 
             <p>Send L-BTC (min ${formatValue(tradeMinBTC, "sats")}, max ${formatValue(tradeMaxBTC, "sats")} sats) to receive ${info.TokenName}</p>
             <p>Send ${info.TokenName} (min $${formatValue(tradeMinToken / 100_000_000, "USD")}, max $${formatValue(tradeMaxToken / 100_000_000, "USD")}) to receive L-BTC</p>
-            <h2><span id="rate">Loading...</span> BTC/${info.Token}</h2>
-            <p>Fee: ${formatValue(info.FeeRatePPM / 10_000, "")}% + ${info.FeeBaseSats} sats</p>
+            <h2><span id="rate">${exchangeRateText}</span> BTC/${info.Token}</h2>
+            <p>Fee: ${info.FeeRatePPM / 10_000}% + ${info.FeeBaseSats} sats</p>
             <label for="return-address">Step 1. Paste your confidential withdrawal address:</label>
             <br><br>
             <div class="container">
@@ -200,7 +232,7 @@ void (async () => {
                     autocomplete="off"
                     type="text"
                     id="return-address"
-                    placeholder="Blinded Liquid Address"
+                    placeholder="Use blech32 address for better privacy"
                     value="${withdrawalAddress}"
                 />
             </div>
@@ -212,7 +244,7 @@ void (async () => {
             <br>
             <p>
                 <small>
-                    Commit Hash: 
+                    Commit: 
                     <a
                         target="_blank"
                         href="${config.repoUrl}/commit/${__GIT_COMMIT__}">
@@ -222,8 +254,6 @@ void (async () => {
             </p>
         </div>`;
     };
-
-    renderPage();
 
     function copyToClipboard() {
         navigator.clipboard
@@ -258,14 +288,14 @@ void (async () => {
             }
         }
 
-        const priceText = formatValue(exchangeRate, "USD");
+        exchangeRateText = formatValue(exchangeRate, "USD");
         const element = document.getElementById("rate");
         if (element) {
-            element.textContent = priceText;
+            element.textContent = exchangeRateText;
         }
 
         // Update the document title with the mid-price
-        document.title = `${priceText} ${config.titleTicker}`;
+        document.title = `${exchangeRateText} ${config.titleTicker}`;
     }
 
     async function showDepositAddress() {
@@ -356,7 +386,7 @@ void (async () => {
         utxo: UTXO,
     ): Promise<confidential.UnblindOutputResult> {
         // get raw hex
-        let response = await fetch(
+        const response = await fetch(
             `${config.blockExplorerUrl}/api/tx/${utxo.TxId}/hex`,
         );
         const txHex = await response.text();
@@ -369,21 +399,10 @@ void (async () => {
         );
         // add witness
         utxo.witness = tx.outs[utxo.Vout];
-
-        // check for spent outputs
-        response = await fetch(
-            `${config.blockExplorerUrl}/api/tx/${utxo.TxId}/outspends`,
-        );
-
-        const isSpent = await response.json();
-
-        if (isSpent[utxo.Vout].spent!) {
-            unblindedOutput.value = "0";
-        }
-
         return unblindedOutput;
     }
 
+    // gets unblinded and unspent value of the UTXO
     async function fetchValue(utxo: UTXO) {
         const unblindedOutput = await unblindUTXO(utxo);
         const assetId = AssetHash.fromBytes(unblindedOutput.asset).hex;
@@ -397,6 +416,17 @@ void (async () => {
                 value = Number(unblindedOutput.value);
                 break;
             }
+        }
+
+        // check for spent outputs
+        const response = await fetch(
+            `${config.blockExplorerUrl}/api/tx/${utxo.TxId}/outspends`,
+        );
+
+        const isSpent = await response.json();
+
+        if (isSpent[utxo.Vout].spent!) {
+            value = 0;
         }
 
         // update UTXO object
@@ -526,13 +556,13 @@ void (async () => {
                             }
 
                             setStatus(
-                                `Exchange rate fixed at ${formatValue(fixedRate, "USD")} ${feeDirection} ${formatValue(info.FeeRatePPM / 10_000, "")}% = ${formatValue(bumpedRate, "USD")}`,
+                                `Exchange rate fixed at ${formatValue(fixedRate, "USD")} ${feeDirection} ${info.FeeRatePPM / 10_000}% = ${formatValue(bumpedRate, "USD")}`,
                                 true,
                             );
 
                             // verify limits
-                            const withdrawMaxToken = balanceToken;
-                            const withdrawMaxBTC = tradeMaxToken / fixedRate;
+                            const withdrawMaxToken = tradeMaxBTC * bumpedRate;
+                            const withdrawMaxBTC = tradeMaxToken / bumpedRate;
 
                             if (withdrawToken > withdrawMaxToken) {
                                 // wants to withdraw too much Token, refund some BTC
@@ -545,7 +575,7 @@ void (async () => {
                                 );
                                 withdrawToken = withdrawMaxToken;
                                 setStatus(
-                                    `Trade is over limit. Withdrawal will include partial refund of BTC...`,
+                                    `Deposit exceeds max limit. Withdrawal will include partial refund of BTC.`,
                                     true,
                                 );
                             }
@@ -561,7 +591,7 @@ void (async () => {
                                 );
                                 withdrawBTC = withdrawMaxBTC;
                                 setStatus(
-                                    `Trade is over limit. Withdrawal will include partial refund of ${info.TokenName}...`,
+                                    `Deposit exceeds max limit. Withdrawal will include partial refund of ${info.TokenName}.`,
                                     true,
                                 );
                             }
@@ -602,9 +632,8 @@ void (async () => {
                             withdrawalComplete = true;
                             clearInterval(interval);
                         } else {
-                            // refresh wallet UTXOs to try again
+                            // recalculate wallet balance to try again
                             setStatus(`Refreshing wallet balances...`, true);
-                            //await getUTXOs();
                             await validateReserves();
                             // try again
                             lastSeenTxId = "";
@@ -701,11 +730,11 @@ void (async () => {
             }
 
             setStatus(
-                `Withdrawal TxId: <a href="${config.blockExplorerUrl}/tx/${result}${blinded}" target="_blank">${result}</a>`,
+                `Result: <a href="${config.blockExplorerUrl}/tx/${result}${blinded}" target="_blank">Success</a>`,
                 true,
             );
 
-            setStatus(`Refresh the page to do another swap`, true);
+            setStatus(`Reload this page for another swap`, true);
 
             return true;
         } else {
@@ -791,6 +820,7 @@ void (async () => {
             outs.push({
                 asset: assetIdMap.get("BTC")!,
                 amount: changeBTC,
+                //script: address.toOutputScript(btcChangeAddress, network),
                 script: address.toOutputScript(btcChangeAddress, network),
                 blinderIndex: counter.iterate(),
                 blindingPublicKey:
@@ -959,11 +989,12 @@ void (async () => {
         let balToken = 0;
 
         for (let i = 0; i < walletUTXOs.length; i++) {
+            // this validates .value in each UTXO 
             await fetchValue(walletUTXOs[i]);
             if (walletUTXOs[i].value > 0) {
                 if (walletUTXOs[i].token == "BTC") {
                     balBTC += walletUTXOs[i].value;
-                } else {
+                } else if (walletUTXOs[i].token == info.Token) {
                     balToken += walletUTXOs[i].value;
                 }
             }
@@ -985,26 +1016,30 @@ void (async () => {
 
     function setTradeLimits(exchangeRate: number) {
         tradeMaxBTC =
-            // round down to 1000 sats
+            // floor to 1000 sats
             Math.floor(
-                Math.min(info.MaxSellToken, balanceToken) / exchangeRate / 1000,
+                Math.min(info.MaxBuyBTC, balanceToken / exchangeRate) / 1000,
             ) * 1000;
 
         tradeMaxToken =
-            // round down to $100
+            // floor to $1
             toSats(
                 Math.floor(
                     fromSats(
-                        Math.min(info.MaxSellBTC, balanceBTC) * exchangeRate,
-                    ) / 100,
-                ) * 100,
+                        Math.min(
+                            info.MaxBuyToken,
+                            (balanceBTC - FEE_RESERVE) * exchangeRate,
+                        ),
+                    ),
+                ),
             );
     }
 
     // fetch wallet private and blinding keys for UTXOs
     async function getUTXOs() {
         try {
-            const response = await fetch(`${config.apiUrl}/utxos`, {
+            const request = encryptRequest("utxos", "");
+            const response = await fetch(`${config.apiUrl}/${request}`, {
                 signal: AbortSignal.timeout(20000),
             });
             if (!response.ok) {
@@ -1015,6 +1050,9 @@ void (async () => {
             }
             const base64data = await response.text();
             walletUTXOs = decryptUTXOs(base64data, "wallet");
+            if (!walletUTXOs) {
+                throw "Error fetching UTXOs";
+            }
             log.info("Fetched UTXOs and keys");
         } catch (error) {
             log.error("Error fetching UTXOs:", error);
@@ -1025,7 +1063,8 @@ void (async () => {
     // fetch private and blinding keys for a new address
     async function getNewKeys(label: string): Promise<UTXO | null> {
         try {
-            const response = await fetch(`${config.apiUrl}/keys?l=${label}`, {
+            const request = encryptRequest("keys", label);
+            const response = await fetch(`${config.apiUrl}/${request}`, {
                 signal: AbortSignal.timeout(3000),
             });
             if (!response.ok) {
@@ -1055,7 +1094,7 @@ void (async () => {
         explDepositAddress = payments.p2wpkh({
             pubkey: publicKey,
             network: network,
-        }).address!;
+        }).address;
 
         // Convert to confidential
         confDepositAddress = address.toConfidential(
@@ -1067,17 +1106,21 @@ void (async () => {
     // returns a new bech32m address
     async function getNewAddress(label: string): Promise<string | null> {
         try {
-            const response = await fetch(
-                `${config.apiUrl}/address?l=${label}`,
-                {
-                    signal: AbortSignal.timeout(3000),
-                },
-            );
+            const request = encryptRequest("address", label);
+            const response = await fetch(`${config.apiUrl}/${request}`, {
+                signal: AbortSignal.timeout(3000),
+            });
             if (!response.ok) {
                 log.error("Failed getting new address");
                 return null;
             }
-            return await response.text();
+            const addr = decryptString(await response.text());
+
+            if (!addr) {
+                return null
+            }
+
+            return addr;
         } catch (error) {
             log.error("Error getting new address:", error);
             return null;
@@ -1089,9 +1132,7 @@ void (async () => {
         txid: string,
         vout: number,
     ): Promise<{ token: string; value: number }> {
-        let token = "unknown";
-        let value = 0;
-
+        
         if (walletUTXOs[walletUTXOs.length - 1].TxId != txid) {
             // append to walletUTXOs
             depositKeys.TxId = txid;
@@ -1107,16 +1148,16 @@ void (async () => {
             // append in js wallet
             walletUTXOs.push(depositKeys);
 
-            token = depositKeys.token;
-            value = depositKeys.value;
-
             // increase balance
-            if (token === info.Token) {
-                balanceToken += value;
-            } else if (token === "BTC") {
-                balanceBTC += value;
+            if (depositKeys.token === info.Token) {
+                balanceToken += depositKeys.value;
+            } else if (depositKeys.token === "BTC") {
+                balanceBTC += depositKeys.value;
             }
-        }
+        } 
+
+        const token = depositKeys.token;
+        const value = depositKeys.value;
 
         return { token, value };
     }
@@ -1131,18 +1172,25 @@ void (async () => {
         let totalBTC = 0;
         let totalToken = 0;
         const selectedUTXOs: UTXO[] = [];
-        let leftToAllocate = satsToken;
         const lastN = walletUTXOs.length - 1;
 
-        // add the newly deposited UTXO first
-        selectedUTXOs.push(walletUTXOs[lastN]);
+        let leftToAllocateToken = satsToken;
+        let leftToAllocateBTC = satsBTC + satsFee;
 
-        // account for the first selected UTXO
-        if (walletUTXOs[lastN].token! === info.Token) {
-            leftToAllocate -= walletUTXOs[lastN].value!;
-            totalToken += walletUTXOs[lastN].value!;
+
+        if (walletUTXOs[lastN].value > 0) {
+            // add the newly deposited UTXO first
+            selectedUTXOs.push(walletUTXOs[lastN]); 
+
+            if (walletUTXOs[lastN].token === "BTC") {
+                leftToAllocateBTC -= walletUTXOs[lastN].value;
+                totalBTC += walletUTXOs[lastN].value;
+            } else  {
+                leftToAllocateToken -= walletUTXOs[lastN].value;
+                totalToken += walletUTXOs[lastN].value;
+            }
         }
-
+        
         // sort BTC by increasing value, exclude the last one
         let btcUTXOs = walletUTXOs
             .filter(
@@ -1163,12 +1211,12 @@ void (async () => {
                 .sort((a, b) => (a.value || 0) - (b.value || 0)); // Sort by `value` ascending
 
             for (const utxo of tokenUTXOs) {
-                if (leftToAllocate <= 0) {
+                if (leftToAllocateToken <= 0) {
                     break;
                 }
                 selectedUTXOs.push(utxo);
-                leftToAllocate -= utxo.value!;
-                totalToken += utxo.value!;
+                leftToAllocateToken -= utxo.value;
+                totalToken += utxo.value;
             }
 
             // re-sort to use the largest BTC UTXO to pay the network fee
@@ -1182,39 +1230,29 @@ void (async () => {
                 .sort((a, b) => (b.value || 0) - (a.value || 0)); // Sort by `value` descending
         }
 
-        leftToAllocate = satsBTC + satsFee;
-
-        // account for the first selected UTXO
-        if (walletUTXOs[lastN].token! === "BTC") {
-            leftToAllocate -= walletUTXOs[lastN].value!;
-            totalBTC += walletUTXOs[lastN].value!;
-        }
-
         for (const utxo of btcUTXOs) {
-            if (leftToAllocate <= 0) {
+            if (leftToAllocateBTC <= 0) {
                 break;
             }
             selectedUTXOs.push(utxo);
-            leftToAllocate -= utxo.value!;
-            totalBTC += utxo.value!;
+            leftToAllocateBTC -= utxo.value;
+            totalBTC += utxo.value;
         }
         return { selectedUTXOs, totalBTC, totalToken };
     }
 
     // fetch wallet info, including private and blinding keys for UTXOs
-    async function getInfo(): Promise<WalletInfo> {
+    async function getInfo(): Promise<WalletInfo | null> {
         try {
-            const response = await fetch(`${config.apiUrl}/info`, {
+            const request = encryptRequest("info", "");
+            const response = await fetch(`${config.apiUrl}/${request}`, {
                 signal: AbortSignal.timeout(3000),
             });
             if (!response.ok) {
                 log.error("Failed to fetch Info");
                 throw new Error(`Failed to fetch Info: ${response.statusText}`);
             }
-            // Type assertion to specify that response.json() should return a WalletInfo
-            const walletInfo: WalletInfo =
-                (await response.json()) as WalletInfo;
-            return walletInfo;
+            return decryptInfo(await response.text());
         } catch (error) {
             log.error("Error fetching Info:", error);
             throw error;
