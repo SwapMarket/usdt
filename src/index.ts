@@ -989,7 +989,7 @@ void (async () => {
         let balToken = 0;
 
         for (let i = 0; i < walletUTXOs.length; i++) {
-            // this validates .value in each UTXO 
+            // this validates .value in each UTXO
             await fetchValue(walletUTXOs[i]);
             if (walletUTXOs[i].value > 0) {
                 if (walletUTXOs[i].token == "BTC") {
@@ -1117,7 +1117,7 @@ void (async () => {
             const addr = decryptString(await response.text());
 
             if (!addr) {
-                return null
+                return null;
             }
 
             return addr;
@@ -1132,7 +1132,6 @@ void (async () => {
         txid: string,
         vout: number,
     ): Promise<{ token: string; value: number }> {
-        
         if (walletUTXOs[walletUTXOs.length - 1].TxId != txid) {
             // append to walletUTXOs
             depositKeys.TxId = txid;
@@ -1154,7 +1153,7 @@ void (async () => {
             } else if (depositKeys.token === "BTC") {
                 balanceBTC += depositKeys.value;
             }
-        } 
+        }
 
         const token = depositKeys.token;
         const value = depositKeys.value;
@@ -1177,20 +1176,19 @@ void (async () => {
         let leftToAllocateToken = satsToken;
         let leftToAllocateBTC = satsBTC + satsFee;
 
-
         if (walletUTXOs[lastN].value > 0) {
             // add the newly deposited UTXO first
-            selectedUTXOs.push(walletUTXOs[lastN]); 
+            selectedUTXOs.push(walletUTXOs[lastN]);
 
             if (walletUTXOs[lastN].token === "BTC") {
                 leftToAllocateBTC -= walletUTXOs[lastN].value;
                 totalBTC += walletUTXOs[lastN].value;
-            } else  {
+            } else {
                 leftToAllocateToken -= walletUTXOs[lastN].value;
                 totalToken += walletUTXOs[lastN].value;
             }
         }
-        
+
         // sort BTC by increasing value, exclude the last one
         let btcUTXOs = walletUTXOs
             .filter(
