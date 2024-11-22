@@ -75,8 +75,7 @@ let withdrawalAddress = "";
 let btcChangeAddress = "";
 let tokenChangeAddress = "";
 let lastSeenTxId = "";
-let withdrawalStatus =
-    "Keep this page open and do not refresh! Awaiting deposit...";
+let withdrawalStatus = "";
 let interval: NodeJS.Timeout;
 let assetIdMap: Map<string, string>;
 let tradeMinBTC = 0; // denomitaned in sats
@@ -125,6 +124,14 @@ void (async () => {
                             info = i;
                             log.info("Fetched wallet info");
 
+                            // initialize asset lookup map
+                            if (!assetIdMap) {
+                                assetIdMap = new Map<string, string>([
+                                    ["BTC", network.assetHash],
+                                    [info.Token, info.TokenId],
+                                ]);
+                            }
+
                             // assume exchange rate from min values for quick estimate
                             const assumedFX = info.MinBuyToken / info.MinBuyBTC;
                             balanceBTC = info.MaxBuyToken / assumedFX;
@@ -138,14 +145,6 @@ void (async () => {
 
                             // Initialize Bitfinex WebSocket with callback to update exchangeRate
                             new BitfinexWS(info.Ticker, updateExchangeRate);
-
-                            // initialize asset lookup map
-                            if (!assetIdMap) {
-                                assetIdMap = new Map<string, string>([
-                                    ["BTC", network.assetHash],
-                                    [info.Token, info.TokenId],
-                                ]);
-                            }
                         }
                         renderPage();
                     })
@@ -202,7 +201,7 @@ void (async () => {
                 zkpValidator = new ZKPValidator(secp);
             })
             .catch((error) => {
-                log.error("Failed to initialize WASM and Go runtime", error);
+                log.error("Failed to initialize zkp", error);
                 hasError = true;
             });
     } catch (error) {
@@ -237,8 +236,8 @@ void (async () => {
             <div id="step2" class="container" style="display:${withdrawalAddress ? "block" : "none"}">
                 <p>Step 2. Fund this address with Liquid BTC or ${info.TokenName}:</p>
                 <p id="depositAddress" class="copy-text"">${confDepositAddress ? confDepositAddress : " Deriving..."}</p>
-                <div id="status">${withdrawalStatus}</div>
             </div>
+            <div id="status">${withdrawalStatus}</div>
             <p>
                 <small>
                     Commit: 
@@ -304,10 +303,14 @@ void (async () => {
 
                 // Attach the function to the element
                 element.addEventListener("click", copyToClipboard);
-
-                // Start polling for transactions
-                interval = setInterval(pollForTransactions, POLL_INTERVAL);
             }
+
+            // Start polling for transactions
+            interval = setInterval(pollForTransactions, POLL_INTERVAL);
+
+            setStatus(
+                "Keep this page open and do not refresh! Awaiting deposit...",
+            );
         } else {
             // fetch a new address, then show
             await getDepositAddress();
@@ -336,7 +339,7 @@ void (async () => {
                     const addr = (inputField as HTMLInputElement).value;
                     if (addr) {
                         try {
-                            if (address.isConfidential(addr)) {
+                            if (address.decodeType(addr, network) > 3) {
                                 contentToToggle.style.display = "block";
                                 withdrawalAddress = addr;
                                 await showDepositAddress();
@@ -354,16 +357,21 @@ void (async () => {
                                             `${info.Token} change`,
                                         )) || btcChangeAddress;
                                 }
-
                                 return;
+                            } else {
+                                setStatus(
+                                    `Confidential ${config.network} address expected`,
+                                );
                             }
                         } catch (error) {
                             log.error(error);
+                            setStatus(
+                                `Confidential ${config.network} address expected`,
+                            );
                         }
                         return;
                     }
                 }
-
                 contentToToggle.style.display = "none";
             }
 

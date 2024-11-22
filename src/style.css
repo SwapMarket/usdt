@@ -129,6 +129,8 @@ button:focus-visible {
     margin: 0;
     padding: 10px;
     box-sizing: border-box;
+    white-space: nowrap;
+    resize: none;
 }
 
 .copy-text {
