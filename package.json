@@ -37,7 +37,6 @@
     "@vulpemventures/secp256k1-zkp": "^3.2.1",
     "iframe-resizer": "^5.3.2",
     "liquidjs-lib": "^6.0.2-liquid.36",
-    "loglevel": "^1.9.2",
-    "tiny-secp256k1": "^2.2.3"
+    "loglevel": "^1.9.2"
   }
 }

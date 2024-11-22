@@ -20,7 +20,6 @@ import {
     script,
 } from "liquidjs-lib";
 import log from "loglevel";
-import * as ecclib from "tiny-secp256k1";
 
 import { BitfinexWS } from "./bitfinex";
 import { config, setConfig } from "./config";
@@ -41,9 +40,9 @@ import {
     decryptUTXOs,
     encryptRequest,
     getBlindingKey,
-    getPrivateKey,
     loadWasm,
     saveNewKeys,
+    signPreimage,
 } from "./wasm";
 
 // wait 10 seconds to connect debugger
@@ -56,7 +55,6 @@ const ERROR_MESSAGE = `
     <div style="text-align: center;">
         <h2>Error connecting to the exchange</h2>
         <p>We're experiencing issues loading the necessary information. Please try again later.</p>
-        <p>You may check browser's console log for more details.</p>
     </div>`;
 
 // Global variables
@@ -78,7 +76,7 @@ let btcChangeAddress = "";
 let tokenChangeAddress = "";
 let lastSeenTxId = "";
 let withdrawalStatus =
-    "*** Keep this page open and do not refresh ***<br><br>Awaiting deposit...";
+    "Keep this page open and do not refresh! Awaiting deposit...";
 let interval: NodeJS.Timeout;
 let assetIdMap: Map<string, string>;
 let tradeMinBTC = 0; // denomitaned in sats
@@ -149,12 +147,12 @@ void (async () => {
                                 ]);
                             }
                         }
-
                         renderPage();
                     })
                     .catch((error) => {
                         log.error("Failed to load wallet info", error);
                         hasError = true;
+                        renderPage();
                     });
 
                 // Fetch UTXOs from API and load private keys into a Go WASM binary
@@ -231,7 +229,7 @@ void (async () => {
                     class="input-box"
                     autocomplete="off"
                     type="text"
-                    id="return-address"
+                    id="return-address"withdrawalStatus
                     placeholder="Use blech32 address for better privacy"
                     value="${withdrawalAddress}"
                 />
@@ -239,9 +237,8 @@ void (async () => {
             <div id="step2" class="container" style="display:${withdrawalAddress ? "block" : "none"}">
                 <p>Step 2. Fund this address with Liquid BTC or ${info.TokenName}:</p>
                 <p id="depositAddress" class="copy-text"">${confDepositAddress ? confDepositAddress : " Deriving..."}</p>
-                <p id="status">${withdrawalStatus}</p>
+                <div id="status">${withdrawalStatus}</div>
             </div>
-            <br>
             <p>
                 <small>
                     Commit: 
@@ -730,7 +727,7 @@ void (async () => {
             }
 
             setStatus(
-                `Result: <a href="${config.blockExplorerUrl}/tx/${result}${blinded}" target="_blank">Success</a>`,
+                `Result: <a href="${config.blockExplorerUrl}/tx/${result}${blinded}" target="_blank">Success!</a>`,
                 true,
             );
 
@@ -929,25 +926,12 @@ void (async () => {
             // Generate input preimage for signing
             const sighash = Transaction.SIGHASH_ALL;
             const preimage = pset.getInputPreimage(index, sighash);
-
-            // Generate the ECDSA signature for the input using your ECC library
-            const signature = ecclib.sign(
-                new Uint8Array(preimage),
-                new Uint8Array(
-                    Buffer.from(
-                        getPrivateKey(selectedUTXOs[index].N),
-                        "base64",
-                    ),
-                ),
-            );
+            const signature = signPreimage(preimage, selectedUTXOs[index].N);
 
             // Attach signature to the input as a partial signature
             const partialSig = {
                 pubkey: Buffer.from(selectedUTXOs[index].PubKey, "base64"),
-                signature: script.signature.encode(
-                    Buffer.from(signature),
-                    sighash,
-                ),
+                signature: script.signature.encode(signature, sighash),
             };
 
             pset.inputs[index].partialSigs =
@@ -1263,6 +1247,9 @@ void (async () => {
         } else {
             withdrawalStatus = status;
         }
-        renderPage();
+        const element = document.getElementById("status");
+        if (element) {
+            element.innerHTML = withdrawalStatus;
+        }
     }
 })();

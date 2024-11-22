@@ -8,12 +8,15 @@ import (
 	"encoding/gob"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"io"
 	"log"
 	"syscall/js"
 	"time"
 
 	"github.com/btcsuite/btcd/btcec/v2"
+	"github.com/decred/dcrd/dcrec/secp256k1/v4"
+	"github.com/decred/dcrd/dcrec/secp256k1/v4/ecdsa"
 	"golang.org/x/crypto/chacha20poly1305"
 	"golang.org/x/crypto/hkdf"
 )
@@ -46,8 +49,8 @@ func main() {
 	js.Global().Set("goDecryptUTXOs", js.FuncOf(decryptUTXOs))
 	js.Global().Set("goDecryptString", js.FuncOf(decryptString))
 	js.Global().Set("goGetBlindingKey", js.FuncOf(getBlindingKey))
-	js.Global().Set("goGetPrivateKey", js.FuncOf(getPrivateKey))
 	js.Global().Set("goSaveNewKeys", js.FuncOf(saveNewKeys))
+	js.Global().Set("goSign", js.FuncOf(sign))
 
 	// Keep the functions active
 	select {}
@@ -233,18 +236,6 @@ func getBlindingKey(this js.Value, p []js.Value) interface{} {
 	return js.ValueOf(keyStr)
 }
 
-// 0: N, -1 means newKey
-func getPrivateKey(this js.Value, p []js.Value) interface{} {
-	n := p[0].Int()
-
-	key := newKeys.Private
-	if n >= 0 {
-		key = walletKeys[n].Private
-	}
-	keyStr := base64.StdEncoding.EncodeToString(key)
-	return js.ValueOf(keyStr)
-}
-
 // appends newKeys to walletKeys
 func saveNewKeys(this js.Value, p []js.Value) interface{} {
 	walletKeys = append(walletKeys, newKeys)
@@ -323,4 +314,63 @@ func encryptRequest(this js.Value, p []js.Value) interface{} {
 	})
 
 	return js.ValueOf(message)
+}
+
+// 0: Hex-encoded preimage
+// 1: key number to use
+// returns hex string
+func sign(this js.Value, p []js.Value) interface{} {
+	// Decode the hex string into bytes
+	data, err := hex.DecodeString(p[0].String())
+	if err != nil {
+		return js.ValueOf("Failed to decode hex string: " + err.Error())
+	}
+
+	// Parse the private key using btcec
+	privateKey := secp256k1.PrivKeyFromBytes(walletKeys[p[1].Int()].Private)
+
+	// Sign the data
+	derSignature := ecdsa.Sign(privateKey, data).Serialize()
+
+	// Convert DER to raw (r|s) signature
+	signature, err := derToRaw(derSignature)
+	if err != nil {
+		return js.ValueOf("Failed to convert signature: " + err.Error())
+	}
+
+	// Return the raw signature as a hex string
+	return js.ValueOf(hex.EncodeToString(signature))
+}
+
+// Convert DER-encoded signature to raw 64-byte signature
+func derToRaw(derSignature []byte) ([]byte, error) {
+	// Parse the DER-encoded signature
+	signature, err := ecdsa.ParseDERSignature(derSignature)
+	if err != nil {
+		return nil, err
+	}
+
+	// Extract R and S values
+	r := signature.R()
+	s := signature.S()
+
+	// Convert R and S to byte slices
+	rBytes := r.Bytes()
+	sBytes := s.Bytes()
+
+	// Ensure R and S are padded to 32 bytes
+	if len(rBytes) > 32 || len(sBytes) > 32 {
+		return nil, errors.New("invalid signature: R or S exceeds 32 bytes")
+	}
+
+	// Create slices for padding
+	rPadded := make([]byte, 32)
+	sPadded := make([]byte, 32)
+
+	// Copy rBytes and sBytes into the padded slices
+	copy(rPadded[32-len(rBytes):], rBytes[:])
+	copy(sPadded[32-len(sBytes):], sBytes[:])
+
+	// Concatenate R and S
+	return append(rPadded, sPadded...), nil
 }

@@ -22,8 +22,8 @@ declare function goDecryptUTXOs(base64Data: string, target: string): string;
 declare function goDecryptInfo(base64Data: string): string;
 declare function goDecryptString(base64Data: string): string;
 declare function goGetBlindingKey(n: number): string;
-declare function goGetPrivateKey(n: number): string;
 declare function goSaveNewKeys(): string;
+declare function goSign(hexPreimage: string, n: number): string;
 
 export async function loadWasm() {
     // Dynamically load `wasm_exec.js` from the public folder
@@ -96,10 +96,10 @@ export function getBlindingKey(n: number): string {
     return goGetBlindingKey(n);
 }
 
-export function getPrivateKey(n: number): string {
-    return goGetPrivateKey(n);
-}
-
 export function saveNewKeys() {
     goSaveNewKeys();
+}
+
+export function signPreimage(preimage: Buffer, n: number): Buffer {
+    return Buffer.from(goSign(preimage.toString("hex"), n), "hex");
 }
