@@ -229,7 +229,7 @@ void (async () => {
                     autocomplete="off"
                     type="text"
                     id="return-address"withdrawalStatus
-                    placeholder="Use p2wkh address for better privacy"
+                    placeholder="Use p2wpkh address for better privacy"
                     value="${withdrawalAddress}"
                 />
             </div>
