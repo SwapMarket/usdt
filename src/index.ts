@@ -229,7 +229,7 @@ void (async () => {
                     autocomplete="off"
                     type="text"
                     id="return-address"withdrawalStatus
-                    placeholder="Use blech32 address for better privacy"
+                    placeholder="Use p2wkh address for better privacy"
                     value="${withdrawalAddress}"
                 />
             </div>
@@ -268,20 +268,15 @@ void (async () => {
     // Function to update the global exchangeRate
     function updateExchangeRate(price: number | null) {
         exchangeRate = price;
-
-        if (!exchangeRate || hasError) {
+        const appElement = document.querySelector<HTMLDivElement>("#app");
+            
+        if (appElement && (!exchangeRate || hasError)) {
             // Update the HTML content to display an error message
-            const appElement = document.querySelector<HTMLDivElement>("#app");
-            if (appElement) {
-                appElement.innerHTML = ERROR_MESSAGE;
-            }
+            appElement.innerHTML = ERROR_MESSAGE;
             return;
-        } else {
-            const appElement = document.querySelector<HTMLDivElement>("#app");
-            if (appElement && appElement.innerHTML == ERROR_MESSAGE) {
-                // Update the HTML content to display as normal
-                appElement.innerHTML = HTML_BODY();
-            }
+        } else if (appElement && appElement.innerHTML == ERROR_MESSAGE) {
+            // Update the HTML content to display as normal
+            appElement.innerHTML = HTML_BODY();
         }
 
         exchangeRateText = formatValue(exchangeRate, "USD");
