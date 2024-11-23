@@ -215,7 +215,7 @@ void (async () => {
             ${config.network}
         </div> 
         <div>
-            <h1>Liquid ${config.titleTicker}</h1>   
+            <h1>Liquid BTC/${info.Token}</h1>   
             <h3>Non-custodial automatic exchange</h3> 
             <p>Send L-BTC (min ${formatValue(tradeMinBTC, "sats")}, max ${formatValue(tradeMaxBTC, "sats")} sats) to receive ${info.TokenName}</p>
             <p>Send ${info.TokenName} (min $${formatValue(tradeMinToken / 100_000_000, "USD")}, max $${formatValue(tradeMaxToken / 100_000_000, "USD")}) to receive L-BTC</p>
@@ -286,7 +286,7 @@ void (async () => {
         }
 
         // Update the document title with the mid-price
-        document.title = `${exchangeRateText} ${config.titleTicker}`;
+        document.title = `${exchangeRateText} BTC/${info.Token}`;
     }
 
     async function showDepositAddress() {

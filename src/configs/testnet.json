@@ -1,9 +1,8 @@
 {
     "network": "testnet",
     "loglevel": "debug",
-    "apiUrl": "https://api.swapmarket.online",
+    "apiUrl": "https://test.swapmarket.online",
     "blockExplorerUrl": "https://blockstream.info/liquidtestnet",
-    "titleTicker": "BTC/USDt",
     "dustBTC": 500,
     "dustToken": 2000000
 }
