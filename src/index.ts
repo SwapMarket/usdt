@@ -357,10 +357,7 @@ void (async () => {
             }
 
             if (inputField) {
-                // Add event listener for the 'change' event
-                inputField.addEventListener("change", toggleContentVisibility);
-
-                // Listen for paste events as well
+                // Add event listener for paste event
                 inputField.addEventListener("paste", () => {
                     setTimeout(toggleContentVisibility, 0); // Delay to ensure the pasted content is read
                 });
