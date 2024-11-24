@@ -269,7 +269,7 @@ void (async () => {
     function updateExchangeRate(price: number | null) {
         exchangeRate = price;
         const appElement = document.querySelector<HTMLDivElement>("#app");
-            
+
         if (appElement && (!exchangeRate || hasError)) {
             // Update the HTML content to display an error message
             appElement.innerHTML = ERROR_MESSAGE;
@@ -338,20 +338,6 @@ void (async () => {
                                 contentToToggle.style.display = "block";
                                 withdrawalAddress = addr;
                                 await showDepositAddress();
-
-                                // Generate return addresses for change
-                                if (!btcChangeAddress) {
-                                    btcChangeAddress =
-                                        (await getNewAddress("BTC change")) ||
-                                        confDepositAddress;
-                                }
-
-                                if (!tokenChangeAddress) {
-                                    tokenChangeAddress =
-                                        (await getNewAddress(
-                                            `${info.Token} change`,
-                                        )) || btcChangeAddress;
-                                }
                                 return;
                             } else {
                                 setStatus(
@@ -1052,7 +1038,7 @@ void (async () => {
         try {
             const request = encryptRequest("keys", label);
             const response = await fetch(`${config.apiUrl}/${request}`, {
-                signal: AbortSignal.timeout(3000),
+                signal: AbortSignal.timeout(5000),
             });
             if (!response.ok) {
                 log.error("Error fetching new keys:", response.statusText);
@@ -1088,14 +1074,26 @@ void (async () => {
             explDepositAddress,
             blindingPublicKey,
         );
+
+        // Generate return addresses for change
+        if (!btcChangeAddress) {
+            btcChangeAddress =
+                (await getChangeAddress("BTC change")) || confDepositAddress;
+        }
+
+        if (!tokenChangeAddress) {
+            tokenChangeAddress =
+                (await getChangeAddress(`${info.Token} change`)) ||
+                btcChangeAddress;
+        }
     }
 
-    // returns a new bech32m address
-    async function getNewAddress(label: string): Promise<string | null> {
+    // returns a new address
+    async function getChangeAddress(label: string): Promise<string | null> {
         try {
             const request = encryptRequest("address", label);
             const response = await fetch(`${config.apiUrl}/${request}`, {
-                signal: AbortSignal.timeout(3000),
+                signal: AbortSignal.timeout(5000),
             });
             if (!response.ok) {
                 log.error("Failed getting new address");
@@ -1104,9 +1102,11 @@ void (async () => {
             const addr = decryptString(await response.text());
 
             if (!addr) {
+                log.error("Error decrypting new address for", label);
                 return null;
             }
 
+            log.debug("Fetched new address for", label);
             return addr;
         } catch (error) {
             log.error("Error getting new address:", error);
