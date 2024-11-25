@@ -244,7 +244,9 @@ void (async () => {
                 <p>Step 2. Send Liquid BTC or ${info.TokenName} to this address:</p>
                 <p id="depositAddress" class="copy-text"">${confDepositAddress ? confDepositAddress : " Deriving..."}</p>
             </div>
-            <div class="container" id="status">${statusText}</div>
+            <div class="container">
+                <p id="status">${statusText}</p>
+            </div>
             <p>
                 <small>
                     Commit: 
@@ -1206,7 +1208,6 @@ void (async () => {
             totalBTC += utxo.value;
         }
 
-        // improve privacy by random order
         selectedUTXOs = scrambleArray(selectedUTXOs);
 
         return { selectedUTXOs, totalBTC, totalToken };
