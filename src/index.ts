@@ -244,7 +244,7 @@ void (async () => {
                 <p>Step 2. Send Liquid BTC or ${info.TokenName} to this address:</p>
                 <p id="depositAddress" class="copy-text"">${confDepositAddress ? confDepositAddress : " Deriving..."}</p>
             </div>
-            <div id="status">${statusText}</div>
+            <div class="container" id="status">${statusText}</div>
             <p>
                 <small>
                     Commit: 
@@ -316,6 +316,8 @@ void (async () => {
 
             // Start polling for transactions
             interval = setInterval(pollForTransactions, POLL_INTERVAL);
+
+            setStatus("");
         } else {
             // fetch a new address, then show
             await getDepositAddress();
