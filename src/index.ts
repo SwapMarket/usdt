@@ -296,7 +296,7 @@ void (async () => {
         if (confDepositAddress) {
             // redraw web page
             renderPage();
-                                
+
             const element = document.getElementById("depositAddress");
             if (element) {
                 element.textContent = confDepositAddress;
@@ -330,7 +330,7 @@ void (async () => {
         // add listener to the input field
         if (!hasError) {
             const inputField = document.getElementById("return-address");
-            
+
             // Function to toggle visibility based on input value
             async function toggleContentVisibility() {
                 // verify address
@@ -340,7 +340,10 @@ void (async () => {
                         try {
                             if (address.decodeType(addr, network) > 3) {
                                 confWithdrawalAddress = addr;
-                                explWithdrawalAddress = address.fromConfidential(confWithdrawalAddress).unconfidentialAddress
+                                explWithdrawalAddress =
+                                    address.fromConfidential(
+                                        confWithdrawalAddress,
+                                    ).unconfidentialAddress;
                                 await showDepositAddress();
                                 return;
                             } else {
@@ -1040,8 +1043,8 @@ void (async () => {
             return;
         }
 
-        log.debug("Fetched deposit keys")
-        
+        log.debug("Fetched deposit keys");
+
         const blindingPublicKey = Buffer.from(depositKeys.PubBlind, "base64");
         const publicKey = Buffer.from(depositKeys.PubKey, "base64");
 
