@@ -71,7 +71,8 @@ let mainOutput = 0; // used to show the unblinded tx in explorer
 let mainNonce: Buffer; // used to show the unblinded tx in explorer
 let confDepositAddress = "";
 let explDepositAddress = "";
-let withdrawalAddress = "";
+let confWithdrawalAddress = "";
+let explWithdrawalAddress = "";
 let btcChangeAddress = "";
 let tokenChangeAddress = "";
 let lastSeenTxId = "";
@@ -221,20 +222,22 @@ void (async () => {
             <p>Send ${info.TokenName} (min $${formatValue(tradeMinToken / 100_000_000, "USD")}, max $${formatValue(tradeMaxToken / 100_000_000, "USD")}) to receive L-BTC</p>
             <h2><span id="rate">${exchangeRateText}</span> BTC/${info.Token}</h2>
             <p>Fee: ${info.FeeRatePPM / 10_000}% + ${info.FeeBaseSats} sats</p>
-            <label for="return-address">Step 1. Paste your confidential withdrawal address:</label>
-            <br><br>
-            <div class="container">
+            <div class="container" style="display:${explWithdrawalAddress ? "none" : "block"}">
+                <label for="return-address">Step 1. Paste your confidential withdrawal address:</label>
+                <br><br>
                 <input
                     class="input-box"
                     autocomplete="off"
                     type="text"
                     id="return-address"withdrawalStatus
                     placeholder="Use p2wpkh address for better privacy"
-                    value="${withdrawalAddress}"
+                    value=""
                 />
             </div>
-            <div id="step2" class="container" style="display:${withdrawalAddress ? "block" : "none"}">
-                <p>Step 2. Fund this address with Liquid BTC or ${info.TokenName}:</p>
+            <div id="step2" class="container" style="display:${confWithdrawalAddress ? "block" : "none"}">
+                <p>Your explicit withdrawal address:</p>
+                <p style="word-wrap: break-word">${explWithdrawalAddress}</p>
+                <p>Step 2. Send Liquid BTC or ${info.TokenName} to this address:</p>
                 <p id="depositAddress" class="copy-text"">${confDepositAddress ? confDepositAddress : " Deriving..."}</p>
             </div>
             <div id="status">${withdrawalStatus}</div>
@@ -291,7 +294,9 @@ void (async () => {
 
     async function showDepositAddress() {
         if (confDepositAddress) {
-            // show on the web page
+            // redraw web page
+            renderPage();
+                                
             const element = document.getElementById("depositAddress");
             if (element) {
                 element.textContent = confDepositAddress;
@@ -325,8 +330,7 @@ void (async () => {
         // add listener to the input field
         if (!hasError) {
             const inputField = document.getElementById("return-address");
-            const contentToToggle = document.getElementById("step2");
-
+            
             // Function to toggle visibility based on input value
             async function toggleContentVisibility() {
                 // verify address
@@ -335,8 +339,8 @@ void (async () => {
                     if (addr) {
                         try {
                             if (address.decodeType(addr, network) > 3) {
-                                contentToToggle.style.display = "block";
-                                withdrawalAddress = addr;
+                                confWithdrawalAddress = addr;
+                                explWithdrawalAddress = address.fromConfidential(confWithdrawalAddress).unconfidentialAddress
                                 await showDepositAddress();
                                 return;
                             } else {
@@ -353,7 +357,6 @@ void (async () => {
                         return;
                     }
                 }
-                contentToToggle.style.display = "none";
             }
 
             if (inputField) {
@@ -472,28 +475,6 @@ void (async () => {
                             `Received ${formattedValue} ${deposit.token} from ${senderAddress}`,
                         );
 
-                        const addressElement = document.getElementById(
-                            "return-address",
-                        ) as HTMLInputElement | null;
-
-                        if (addressElement && !withdrawalAddress) {
-                            withdrawalAddress = addressElement.value;
-                        }
-
-                        if (
-                            !withdrawalAddress ||
-                            !address.isConfidential(withdrawalAddress) ||
-                            withdrawalAddress == confDepositAddress
-                        ) {
-                            // invalid withdrawal address
-                            setStatus(
-                                `Please provide confidential withdrawal address!`,
-                            );
-
-                            withdrawalPending = false;
-                            return;
-                        }
-
                         // amounts to be sent back
                         let withdrawBTC = 0; // in sats
                         let withdrawToken = 0; // in sats
@@ -601,12 +582,12 @@ void (async () => {
                         }
 
                         setStatus(
-                            `Sending ${textAmount} to ${address.fromConfidential(withdrawalAddress).unconfidentialAddress}`,
+                            `Sending ${textAmount} to ${explWithdrawalAddress}`,
                             true,
                         );
 
                         const success = await processWithdrawal(
-                            withdrawalAddress,
+                            confWithdrawalAddress,
                             withdrawBTC,
                             withdrawToken,
                         );
@@ -1056,7 +1037,11 @@ void (async () => {
         if (!depositKeys) {
             hasError = true;
             renderPage();
+            return;
         }
+
+        log.debug("Fetched deposit keys")
+        
         const blindingPublicKey = Buffer.from(depositKeys.PubBlind, "base64");
         const publicKey = Buffer.from(depositKeys.PubKey, "base64");
 
