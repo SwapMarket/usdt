@@ -1139,7 +1139,7 @@ void (async () => {
     ): { selectedUTXOs: UTXO[]; totalBTC: number; totalToken: number } {
         let totalBTC = 0;
         let totalToken = 0;
-        const selectedUTXOs: UTXO[] = [];
+        let selectedUTXOs: UTXO[] = [];
         const lastN = walletUTXOs.length - 1;
 
         let leftToAllocateToken = satsToken;
@@ -1205,6 +1205,10 @@ void (async () => {
             leftToAllocateBTC -= utxo.value;
             totalBTC += utxo.value;
         }
+
+        // improve privacy by random order
+        selectedUTXOs = scrambleArray(selectedUTXOs);
+
         return { selectedUTXOs, totalBTC, totalToken };
     }
 
