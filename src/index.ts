@@ -49,19 +49,17 @@ import {
 //await new Promise((f) => setTimeout(f, 10000));
 
 // constants
+const API_TIMEOUT = 30_000; // 30 seconds max for wallet API fetching
 const FEE_RESERVE = 100; // sats
 const POLL_INTERVAL = 5_000; // frequency of mempool transaction polling, ms
-const ERROR_MESSAGE = `
-    <div style="text-align: center;">
-        <h2>Error connecting to the exchange</h2>
-        <p>We're experiencing issues loading the necessary information. Please try again later.</p>
-    </div>`;
 
 // Global variables
 let network: networks.Network;
 let exchangeRate: number | null = null;
 let exchangeRateText = "Loading...";
 let hasError = false;
+let displayError =
+    "We're experiencing issues loading the necessary information. Please try again later.";
 let withdrawalPending: boolean = false;
 let withdrawalComplete: boolean = false;
 let confi: confidential.Confidential;
@@ -76,7 +74,7 @@ let explWithdrawalAddress = "";
 let btcChangeAddress = "";
 let tokenChangeAddress = "";
 let lastSeenTxId = "";
-let withdrawalStatus = "";
+let statusText = "";
 let interval: NodeJS.Timeout;
 let assetIdMap: Map<string, string>;
 let tradeMinBTC = 0; // denomitaned in sats
@@ -210,6 +208,13 @@ void (async () => {
         hasError = true;
     }
 
+    const ERROR_MESSAGE = () => {
+        return `<div style="text-align: center;">
+            <h2>Error connecting to the exchange</h2>
+            <p>${displayError}</p>
+        </div>`;
+    };
+
     const HTML_BODY = () => {
         return `
         <div class="btn btn-small">
@@ -234,13 +239,13 @@ void (async () => {
                     value=""
                 />
             </div>
-            <div id="step2" class="container" style="display:${confWithdrawalAddress ? "block" : "none"}">
+            <div class="container" style="display:${confWithdrawalAddress ? "block" : "none"}">
                 <p>Your explicit withdrawal address:</p>
                 <p style="word-wrap: break-word">${explWithdrawalAddress}</p>
                 <p>Step 2. Send Liquid BTC or ${info.TokenName} to this address:</p>
                 <p id="depositAddress" class="copy-text"">${confDepositAddress ? confDepositAddress : " Deriving..."}</p>
             </div>
-            <div id="status">${withdrawalStatus}</div>
+            <div id="status">${statusText}</div>
             <p>
                 <small>
                     Commit: 
@@ -275,9 +280,9 @@ void (async () => {
 
         if (appElement && (!exchangeRate || hasError)) {
             // Update the HTML content to display an error message
-            appElement.innerHTML = ERROR_MESSAGE;
+            appElement.innerHTML = ERROR_MESSAGE();
             return;
-        } else if (appElement && appElement.innerHTML == ERROR_MESSAGE) {
+        } else if (appElement && appElement.innerHTML == ERROR_MESSAGE()) {
             // Update the HTML content to display as normal
             appElement.innerHTML = HTML_BODY();
         }
@@ -324,7 +329,7 @@ void (async () => {
 
         // Render page
         document.querySelector<HTMLDivElement>("#app")!.innerHTML = hasError
-            ? ERROR_MESSAGE
+            ? ERROR_MESSAGE()
             : HTML_BODY();
 
         // add listener to the input field
@@ -649,8 +654,8 @@ void (async () => {
                 satsBTC,
                 satsToken,
                 satsFee,
-                btcChangeAddress,
-                tokenChangeAddress,
+                btcChangeAddress || confDepositAddress,
+                tokenChangeAddress || confDepositAddress,
             );
 
             if (!tx) {
@@ -787,7 +792,6 @@ void (async () => {
             outs.push({
                 asset: assetIdMap.get("BTC")!,
                 amount: changeBTC,
-                //script: address.toOutputScript(btcChangeAddress, network),
                 script: address.toOutputScript(btcChangeAddress, network),
                 blinderIndex: counter.iterate(),
                 blindingPublicKey:
@@ -957,7 +961,8 @@ void (async () => {
         balanceBTC = balBTC;
         balanceToken = balToken;
 
-        log.info("Validated reserves");
+        log.info("Wallet reserves validated");
+        setStatus("Wallet reserves validated");
 
         while (!exchangeRate) {
             log.warn("No Bitfinex price feed, wait 5 seconds.");
@@ -992,17 +997,7 @@ void (async () => {
     // fetch wallet private and blinding keys for UTXOs
     async function getUTXOs() {
         try {
-            const request = encryptRequest("utxos", "");
-            const response = await fetch(`${config.apiUrl}/${request}`, {
-                signal: AbortSignal.timeout(20000),
-            });
-            if (!response.ok) {
-                log.error("Failed to fetch UTXOs");
-                throw new Error(
-                    `Failed to fetch UTXOs: ${response.statusText}`,
-                );
-            }
-            const base64data = await response.text();
+            const base64data = await fetchEncrypted("utxos", "");
             walletUTXOs = decryptUTXOs(base64data, "wallet");
             if (!walletUTXOs) {
                 throw "Error fetching UTXOs";
@@ -1017,15 +1012,7 @@ void (async () => {
     // fetch private and blinding keys for a new address
     async function getNewKeys(label: string): Promise<UTXO | null> {
         try {
-            const request = encryptRequest("keys", label);
-            const response = await fetch(`${config.apiUrl}/${request}`, {
-                signal: AbortSignal.timeout(5000),
-            });
-            if (!response.ok) {
-                log.error("Error fetching new keys:", response.statusText);
-                return null;
-            }
-            const base64data = await response.text();
+            const base64data = await fetchEncrypted("keys", label);
             return decryptUTXOs(base64data, "new")[0];
         } catch (error) {
             log.error("Error fetching new keys:", error);
@@ -1062,29 +1049,38 @@ void (async () => {
 
         // Generate return addresses for change
         if (!btcChangeAddress) {
-            btcChangeAddress =
-                (await getChangeAddress("BTC change")) || confDepositAddress;
-        }
-
-        if (!tokenChangeAddress) {
-            tokenChangeAddress =
-                (await getChangeAddress(`${info.Token} change`)) ||
-                btcChangeAddress;
+            await getChangeAddress("BTC change")
+                .then((addr) => {
+                    btcChangeAddress = addr;
+                })
+                .catch((error) => {
+                    log.error(
+                        `Failed to fetch BTC change address: ${error}, fall back to deposit address`,
+                    );
+                    btcChangeAddress = confDepositAddress;
+                })
+                .finally(() => {
+                    if (!tokenChangeAddress) {
+                        getChangeAddress(`${info.Token} change`)
+                            .then((addr) => {
+                                tokenChangeAddress = addr;
+                            })
+                            .catch((error) => {
+                                log.error(
+                                    `Failed to fetch ${info.Token} change address: ${error}, fall back to deposit address`,
+                                );
+                                tokenChangeAddress =
+                                    btcChangeAddress || confDepositAddress;
+                            });
+                    }
+                });
         }
     }
 
     // returns a new address
     async function getChangeAddress(label: string): Promise<string | null> {
         try {
-            const request = encryptRequest("address", label);
-            const response = await fetch(`${config.apiUrl}/${request}`, {
-                signal: AbortSignal.timeout(5000),
-            });
-            if (!response.ok) {
-                log.error("Failed getting new address");
-                return null;
-            }
-            const addr = decryptString(await response.text());
+            const addr = decryptString(await fetchEncrypted("address", label));
 
             if (!addr) {
                 log.error("Error decrypting new address for", label);
@@ -1211,18 +1207,30 @@ void (async () => {
         return { selectedUTXOs, totalBTC, totalToken };
     }
 
+    // fetches base64 response from wallet API
+    async function fetchEncrypted(
+        method: string,
+        argument: string,
+    ): Promise<string> {
+        const request = encryptRequest(method, argument);
+        const response = await fetch(`${config.apiUrl}/${request}`, {
+            signal: AbortSignal.timeout(API_TIMEOUT),
+        });
+        if (!response.ok) {
+            throw new Error(`Failed to fetch Info: ${response.statusText}`);
+        }
+        const responseText = await response.text();
+        if (responseText == "stale timestamp") {
+            displayError = "Please synchronize your clock";
+            throw new Error(`Failed to fetch Info: ${response.statusText}`);
+        }
+        return responseText;
+    }
+
     // fetch wallet info, including private and blinding keys for UTXOs
     async function getInfo(): Promise<WalletInfo | null> {
         try {
-            const request = encryptRequest("info", "");
-            const response = await fetch(`${config.apiUrl}/${request}`, {
-                signal: AbortSignal.timeout(3000),
-            });
-            if (!response.ok) {
-                log.error("Failed to fetch Info");
-                throw new Error(`Failed to fetch Info: ${response.statusText}`);
-            }
-            return decryptInfo(await response.text());
+            return decryptInfo(await fetchEncrypted("info", ""));
         } catch (error) {
             log.error("Error fetching Info:", error);
             throw error;
@@ -1231,13 +1239,13 @@ void (async () => {
 
     function setStatus(status: string, append: boolean = false) {
         if (append) {
-            withdrawalStatus += "<br><br>" + status;
+            statusText += "<br><br>" + status;
         } else {
-            withdrawalStatus = status;
+            statusText = status;
         }
         const element = document.getElementById("status");
         if (element) {
-            element.innerHTML = withdrawalStatus;
+            element.innerHTML = statusText;
         }
     }
 })();

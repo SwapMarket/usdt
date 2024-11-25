@@ -1,5 +1,3 @@
-import log from "loglevel";
-
 import type { UTXO, WalletInfo } from "./consts/Types";
 import { isUTXO } from "./consts/Types";
 
@@ -54,15 +52,7 @@ export function encryptRequest(request: string, arg: string): string {
     return goEncryptRequest(request, arg);
 }
 
-export function decryptUTXOs(
-    base64Data: string,
-    target: string,
-): UTXO[] | null {
-    if (base64Data == "stale timestamp") {
-        log.error("Please synchronize your clock");
-        return null;
-    }
-
+export function decryptUTXOs(base64Data: string, target: string): UTXO[] {
     const result = JSON.parse(goDecryptUTXOs(base64Data, target));
 
     // Ensure `result` is an array of `UTXO` objects
@@ -73,22 +63,13 @@ export function decryptUTXOs(
     throw new Error("Invalid data format received from goDecryptUTXOs");
 }
 
-export function decryptInfo(base64Data: string): WalletInfo | null {
-    if (base64Data == "stale timestamp") {
-        log.error("Please synchronize your clock");
-        return null;
-    }
-
+export function decryptInfo(base64Data: string): WalletInfo {
     const jsonString = goDecryptInfo(base64Data);
     const walletInfo = JSON.parse(jsonString) as WalletInfo;
     return walletInfo;
 }
 
 export function decryptString(base64Data: string): string {
-    if (base64Data == "stale timestamp") {
-        log.error("Please synchronize your clock");
-        return "";
-    }
     return goDecryptString(base64Data);
 }
 
