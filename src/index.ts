@@ -74,7 +74,8 @@ let explWithdrawalAddress = "";
 let btcChangeAddress = "";
 let tokenChangeAddress = "";
 let lastSeenTxId = "";
-let statusText = "";
+let statusText = "Validating wallet balances, please wait...";
+let limitsValidated = false;
 let interval: NodeJS.Timeout;
 let assetIdMap: Map<string, string>;
 let tradeMinBTC = 0; // denomitaned in sats
@@ -165,20 +166,14 @@ void (async () => {
                             // verify wallet balances
                             validateReserves()
                                 .then(() => {
-                                    if (
-                                        tradeMaxBTC != info.MaxBuyBTC ||
-                                        tradeMaxToken != info.MaxBuyToken
-                                    ) {
-                                        // refresh screen with corrected limits
-                                        renderPage();
-                                    }
+                                    limitsValidated = true;
+                                    statusText = "";
+                                    renderPage();
                                 })
                                 .catch((error) => {
-                                    log.error(
-                                        "Failed to validate reserves",
-                                        error,
+                                    setStatus(
+                                        `Failed to validate reserves! Error: ${error}`,
                                     );
-                                    hasError = true;
                                 });
                         }
                     })
@@ -216,10 +211,15 @@ void (async () => {
     };
 
     const HTML_BODY = () => {
-        return `
-        <div class="btn btn-small">
-            ${config.network}
-        </div> 
+        let htmlText = "";
+
+        if (config.network != "mainnet") {
+            htmlText += `<div class="btn btn-small">
+                ${config.network}
+            </div>`;
+        }
+
+        htmlText += `
         <div>
             <h1>Liquid BTC/${info.Token}</h1>   
             <h3>Non-custodial automatic exchange</h3> 
@@ -227,7 +227,7 @@ void (async () => {
             <p>Send ${info.TokenName} (min $${formatValue(tradeMinToken / 100_000_000, "USD")}, max $${formatValue(tradeMaxToken / 100_000_000, "USD")}) to receive L-BTC</p>
             <h2><span id="rate">${exchangeRateText}</span> BTC/${info.Token}</h2>
             <p>Fee: ${info.FeeRatePPM / 10_000}% + ${info.FeeBaseSats} sats</p>
-            <div class="container" style="display:${explWithdrawalAddress ? "none" : "block"}">
+            <div class="container" style="display:${explWithdrawalAddress || !limitsValidated ? "none" : "block"}">
                 <label for="return-address">Step 1. Paste your confidential withdrawal address:</label>
                 <br><br>
                 <input
@@ -240,8 +240,7 @@ void (async () => {
                 />
             </div>
             <div class="container" style="display:${confWithdrawalAddress ? "block" : "none"}">
-                <p>Your explicit withdrawal address:</p>
-                <p style="word-wrap: break-word">${explWithdrawalAddress}</p>
+                <p style="word-wrap: break-word">Withdrawal to: ${confWithdrawalAddress} (confidential) / ${explWithdrawalAddress} (explicit)</p>
                 <p>Step 2. Send Liquid BTC or ${info.TokenName} to this address:</p>
                 <p id="depositAddress" class="copy-text"">${confDepositAddress ? confDepositAddress : " Deriving..."}</p>
             </div>
@@ -257,6 +256,8 @@ void (async () => {
                 </small>
             </p>
         </div>`;
+
+        return htmlText;
     };
 
     function copyToClipboard() {
@@ -267,6 +268,9 @@ void (async () => {
                 if (element) {
                     element.textContent = confDepositAddress + " (copied)";
                 }
+                setStatus(
+                    "Keep this page open and do not refresh! Awaiting deposit...",
+                );
             })
             .catch((err) => {
                 alert("Failed to copy text: " + err);
@@ -312,10 +316,6 @@ void (async () => {
 
             // Start polling for transactions
             interval = setInterval(pollForTransactions, POLL_INTERVAL);
-
-            setStatus(
-                "Keep this page open and do not refresh! Awaiting deposit...",
-            );
         } else {
             // fetch a new address, then show
             await getDepositAddress();
@@ -962,7 +962,6 @@ void (async () => {
         balanceToken = balToken;
 
         log.info("Wallet reserves validated");
-        setStatus("Wallet reserves validated");
 
         while (!exchangeRate) {
             log.warn("No Bitfinex price feed, wait 5 seconds.");
