@@ -1,4 +1,4 @@
-import type { UTXO, WalletInfo } from "./consts/Types";
+import type { Addresses, UTXO } from "./consts/Types";
 import { isUTXO } from "./consts/Types";
 
 const WASM_URL = "wasm/main.wasm";
@@ -15,10 +15,9 @@ type GoConstructor = new () => {
 // Declare `Go` with the constructor type
 declare const Go: GoConstructor;
 
-declare function goEncryptRequest(request: string, arg: string): string;
-declare function goDecryptUTXOs(base64Data: string, target: string): string;
-declare function goDecryptInfo(base64Data: string): string;
-declare function goDecryptString(base64Data: string): string;
+declare function goEncryptRequest(request: string): string;
+declare function goDecryptUTXOs(base64Data: string): string;
+declare function goDecryptAddresses(base64Data: string): string;
 declare function goGetBlindingKey(n: number): string;
 declare function goSaveNewKeys(): string;
 declare function goSign(hexPreimage: string, n: number): string;
@@ -48,12 +47,12 @@ export async function loadWasm() {
     go.run(wasm);
 }
 
-export function encryptRequest(request: string, arg: string): string {
-    return goEncryptRequest(request, arg);
+export function encryptRequest(request: string): string {
+    return goEncryptRequest(request);
 }
 
-export function decryptUTXOs(base64Data: string, target: string): UTXO[] {
-    const result = JSON.parse(goDecryptUTXOs(base64Data, target));
+export function decryptUTXOs(base64Data: string): UTXO[] {
+    const result = JSON.parse(goDecryptUTXOs(base64Data));
 
     // Ensure `result` is an array of `UTXO` objects
     if (Array.isArray(result) && result.every(isUTXO)) {
@@ -63,14 +62,9 @@ export function decryptUTXOs(base64Data: string, target: string): UTXO[] {
     throw new Error("Invalid data format received from goDecryptUTXOs");
 }
 
-export function decryptInfo(base64Data: string): WalletInfo {
-    const jsonString = goDecryptInfo(base64Data);
-    const walletInfo = JSON.parse(jsonString) as WalletInfo;
-    return walletInfo;
-}
-
-export function decryptString(base64Data: string): string {
-    return goDecryptString(base64Data);
+export function decryptAddresses(base64Data: string): Addresses {
+    const jsonString = goDecryptAddresses(base64Data);
+    return JSON.parse(jsonString) as Addresses;
 }
 
 export function getBlindingKey(n: number): string {

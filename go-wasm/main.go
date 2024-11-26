@@ -45,9 +45,8 @@ var newKeys Keys
 func main() {
 	// Expose the functions to JavaScript
 	js.Global().Set("goEncryptRequest", js.FuncOf(encryptRequest))
-	js.Global().Set("goDecryptInfo", js.FuncOf(decryptInfo))
+	js.Global().Set("goDecryptAddresses", js.FuncOf(decryptAddresses))
 	js.Global().Set("goDecryptUTXOs", js.FuncOf(decryptUTXOs))
-	js.Global().Set("goDecryptString", js.FuncOf(decryptString))
 	js.Global().Set("goGetBlindingKey", js.FuncOf(getBlindingKey))
 	js.Global().Set("goSaveNewKeys", js.FuncOf(saveNewKeys))
 	js.Global().Set("goSign", js.FuncOf(sign))
@@ -56,21 +55,19 @@ func main() {
 	select {}
 }
 
+type InboundUTXO struct {
+	TxId     string
+	Vout     uint
+	Private  []byte
+	Blinding []byte
+}
+
 // 0: base64 encoded and encrypted GOB object
-// 1: "wallet" or "new"
 // returns UTXO object
 func decryptUTXOs(this js.Value, p []js.Value) interface{} {
 	base64data := p[0].String()
-	target := p[1].String()
 
-	type Inbound struct {
-		TxId     string
-		Vout     uint
-		Private  []byte
-		Blinding []byte
-	}
-
-	var inbound []Inbound
+	var inbound []InboundUTXO
 
 	err := decryptObject(base64data, &inbound)
 	if err != nil {
@@ -79,10 +76,8 @@ func decryptUTXOs(this js.Value, p []js.Value) interface{} {
 
 	var utxos []UTXO
 
-	if target == "utxos" {
-		// delete keys
-		walletKeys = []Keys{}
-	}
+	// delete keys
+	walletKeys = []Keys{}
 
 	// move keys to vault and utxos for export
 	for i, inbound := range inbound {
@@ -103,14 +98,7 @@ func decryptUTXOs(this js.Value, p []js.Value) interface{} {
 		}
 
 		utxos = append(utxos, utxo)
-
-		if target == "new" {
-			newKeys = keys
-			break
-		}
-		if target == "wallet" {
-			walletKeys = append(walletKeys, keys)
-		}
+		walletKeys = append(walletKeys, keys)
 	}
 
 	// Convert `utxos` to JSON to return a JavaScript-friendly format
@@ -123,52 +111,58 @@ func decryptUTXOs(this js.Value, p []js.Value) interface{} {
 }
 
 // 0: base64 encoded and encrypted GOB object
-// returns Info object
-func decryptInfo(this js.Value, p []js.Value) interface{} {
+// returns Addresses object
+func decryptAddresses(this js.Value, p []js.Value) interface{} {
 	base64data := p[0].String()
 
-	type Info struct {
-		Token       string
-		TokenId     string
-		TokenName   string
-		Ticker      string
-		MaxBuyBTC   uint64
-		MaxBuyToken uint64
-		MinBuyBTC   uint64
-		MinBuyToken uint64
-		FeeRatePPM  uint64
-		FeeBaseSats uint64
+	type InboundAddresses struct {
+		Deposit     InboundUTXO
+		ChangeBTC   string
+		ChangeToken string
 	}
 
-	var inbound Info
+	var inbound InboundAddresses
 
 	err := decryptObject(base64data, &inbound)
 	if err != nil {
 		return nil
 	}
 
+	newKeys = Keys{
+		Private:  inbound.Deposit.Private,
+		Blinding: inbound.Deposit.Blinding,
+	}
+
+	_, pubKey := btcec.PrivKeyFromBytes(inbound.Deposit.Private)
+	_, pubBlind := btcec.PrivKeyFromBytes(inbound.Deposit.Blinding)
+
+	utxo := UTXO{
+		N:        0,
+		TxId:     inbound.Deposit.TxId,
+		Vout:     inbound.Deposit.Vout,
+		PubKey:   base64.StdEncoding.EncodeToString(pubKey.SerializeCompressed()),
+		PubBlind: base64.StdEncoding.EncodeToString(pubBlind.SerializeCompressed()),
+	}
+
+	type Addresses struct {
+		Deposit     UTXO
+		ChangeBTC   string
+		ChangeToken string
+	}
+
+	result := Addresses{
+		Deposit:     utxo,
+		ChangeBTC:   inbound.ChangeBTC,
+		ChangeToken: inbound.ChangeToken,
+	}
+
 	// Convert to JSON to return a JavaScript-friendly format
-	jsonData, err := json.Marshal(inbound)
+	jsonData, err := json.Marshal(result)
 	if err != nil {
 		return nil
 	}
 
 	return js.ValueOf(string(jsonData))
-}
-
-// 0: base64 encoded and encrypted GOB object
-// returns String
-func decryptString(this js.Value, p []js.Value) interface{} {
-	base64data := p[0].String()
-
-	var inbound string
-
-	err := decryptObject(base64data, &inbound)
-	if err != nil {
-		return nil
-	}
-
-	return js.ValueOf(inbound)
 }
 
 // decrypts any data
@@ -298,7 +292,6 @@ func encryptMessage(message any) string {
 }
 
 // 0: request
-// 1: arg
 // returns Request object
 func encryptRequest(this js.Value, p []js.Value) interface{} {
 	type Request struct {
@@ -309,7 +302,6 @@ func encryptRequest(this js.Value, p []js.Value) interface{} {
 
 	message := encryptMessage(&Request{
 		Request:   p[0].String(),
-		Arg:       p[1].String(),
 		TimeStamp: time.Now().Unix(),
 	})
 

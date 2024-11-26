@@ -35,8 +35,7 @@ import {
     toSats,
 } from "./utils";
 import {
-    decryptInfo,
-    decryptString,
+    decryptAddresses,
     decryptUTXOs,
     encryptRequest,
     getBlindingKey,
@@ -110,51 +109,44 @@ void (async () => {
 
         log.debug("Network:", config.network);
 
+        // Get wallet info
+        getInfo()
+            .then((i) => {
+                info = i;
+                log.info("Fetched wallet info");
+
+                // Initialize Bitfinex WebSocket with callback to update exchangeRate
+                new BitfinexWS(info.Ticker, updateExchangeRate);
+
+                // initialize asset lookup map
+                if (!assetIdMap) {
+                    assetIdMap = new Map<string, string>([
+                        ["BTC", network.assetHash],
+                        [info.Token, info.TokenId],
+                    ]);
+                }
+
+                // assume exchange rate from min values for quick estimate
+                const assumedFX = info.MinBuyToken / info.MinBuyBTC;
+                balanceBTC = info.MaxBuyToken / assumedFX;
+                balanceToken = info.MaxBuyBTC * assumedFX;
+                tradeMinBTC = info.MinBuyBTC;
+                // round to $1
+                tradeMinToken = toSats(Math.round(fromSats(info.MinBuyToken)));
+                setTradeLimits(assumedFX);
+            })
+            .catch((error) => {
+                log.error("Failed to load wallet info", error);
+                hasError = true;
+            })
+            .finally(() => renderPage());
+
         // initiate WASM mobule
         loadWasm()
             .then(() => {
                 log.info("WASM and Go runtime initialized");
 
-                // Get wallet info
-                getInfo()
-                    .then((i) => {
-                        if (!i) {
-                            hasError = true;
-                        } else {
-                            info = i;
-                            log.info("Fetched wallet info");
-
-                            // initialize asset lookup map
-                            if (!assetIdMap) {
-                                assetIdMap = new Map<string, string>([
-                                    ["BTC", network.assetHash],
-                                    [info.Token, info.TokenId],
-                                ]);
-                            }
-
-                            // assume exchange rate from min values for quick estimate
-                            const assumedFX = info.MinBuyToken / info.MinBuyBTC;
-                            balanceBTC = info.MaxBuyToken / assumedFX;
-                            balanceToken = info.MaxBuyBTC * assumedFX;
-                            tradeMinBTC = info.MinBuyBTC;
-                            // round to $1
-                            tradeMinToken = toSats(
-                                Math.round(fromSats(info.MinBuyToken)),
-                            );
-                            setTradeLimits(assumedFX);
-
-                            // Initialize Bitfinex WebSocket with callback to update exchangeRate
-                            new BitfinexWS(info.Ticker, updateExchangeRate);
-                        }
-                        renderPage();
-                    })
-                    .catch((error) => {
-                        log.error("Failed to load wallet info", error);
-                        hasError = true;
-                        renderPage();
-                    });
-
-                // Fetch UTXOs from API and load private keys into a Go WASM binary
+                // Fetch UTXOs from API and load private keys into the Go WASM binary
                 getUTXOs()
                     .then(() => {
                         if (!walletUTXOs) {
@@ -240,7 +232,7 @@ void (async () => {
                 />
             </div>
             <div class="container" style="display:${confWithdrawalAddress ? "block" : "none"}">
-                <p style="word-wrap: break-word">Withdrawal to: ${confWithdrawalAddress} (confidential) / ${explWithdrawalAddress} (explicit)</p>
+                <p style="word-wrap: break-word">Withdrawal addrerss: ${confWithdrawalAddress} (confidential) / ${explWithdrawalAddress} (explicit)</p>
                 <p>Step 2. Send Liquid BTC or ${info.TokenName} to this address:</p>
                 <p id="depositAddress" class="copy-text"">${confDepositAddress ? confDepositAddress : " Deriving..."}</p>
             </div>
@@ -321,8 +313,8 @@ void (async () => {
 
             setStatus("");
         } else {
-            // fetch a new address, then show
-            await getDepositAddress();
+            // fetch a new addresses, then show
+            await getAddresses();
             await showDepositAddress();
         }
     }
@@ -1000,8 +992,8 @@ void (async () => {
     // fetch wallet private and blinding keys for UTXOs
     async function getUTXOs() {
         try {
-            const base64data = await fetchEncrypted("utxos", "");
-            walletUTXOs = decryptUTXOs(base64data, "wallet");
+            const base64data = await fetchEncrypted("utxos");
+            walletUTXOs = decryptUTXOs(base64data);
             if (!walletUTXOs) {
                 throw "Error fetching UTXOs";
             }
@@ -1012,89 +1004,41 @@ void (async () => {
         }
     }
 
-    // fetch private and blinding keys for a new address
-    async function getNewKeys(label: string): Promise<UTXO | null> {
-        try {
-            const base64data = await fetchEncrypted("keys", label);
-            return decryptUTXOs(base64data, "new")[0];
-        } catch (error) {
-            log.error("Error fetching new keys:", error);
-            return null;
-        }
-    }
-
-    // Fetch private and blinding keys, then generate the deposit address
+    // Fetch new private and blinding keys, then generate the deposit address
     // This ensures that the client gets the refund if funding exceeds limit
-    async function getDepositAddress() {
-        depositKeys = await getNewKeys("deposit");
-        if (!depositKeys) {
+    // The same request also fetches two change addresses
+    async function getAddresses() {
+        try {
+            const base64data = await fetchEncrypted("addresses");
+            const addresses = decryptAddresses(base64data);
+
+            depositKeys = addresses.Deposit;
+            btcChangeAddress = addresses.ChangeBTC;
+            tokenChangeAddress = addresses.ChangeToken;
+
+            log.debug("Fetched deposit keys and change addresses");
+
+            const blindingPublicKey = Buffer.from(
+                depositKeys.PubBlind,
+                "base64",
+            );
+            const publicKey = Buffer.from(depositKeys.PubKey, "base64");
+
+            // Generate explicit address using P2WPKH
+            explDepositAddress = payments.p2wpkh({
+                pubkey: publicKey,
+                network: network,
+            }).address;
+
+            // Convert to confidential
+            confDepositAddress = address.toConfidential(
+                explDepositAddress,
+                blindingPublicKey,
+            );
+        } catch (error) {
+            log.error("Error fetching new addresses:", error);
             hasError = true;
             renderPage();
-            return;
-        }
-
-        log.debug("Fetched deposit keys");
-
-        const blindingPublicKey = Buffer.from(depositKeys.PubBlind, "base64");
-        const publicKey = Buffer.from(depositKeys.PubKey, "base64");
-
-        // Generate explicit address using P2WPKH
-        explDepositAddress = payments.p2wpkh({
-            pubkey: publicKey,
-            network: network,
-        }).address;
-
-        // Convert to confidential
-        confDepositAddress = address.toConfidential(
-            explDepositAddress,
-            blindingPublicKey,
-        );
-
-        // Generate return addresses for change
-        if (!btcChangeAddress) {
-            await getChangeAddress("BTC change")
-                .then((addr) => {
-                    btcChangeAddress = addr;
-                })
-                .catch((error) => {
-                    log.error(
-                        `Failed to fetch BTC change address: ${error}, fall back to deposit address`,
-                    );
-                    btcChangeAddress = confDepositAddress;
-                })
-                .finally(() => {
-                    if (!tokenChangeAddress) {
-                        getChangeAddress(`${info.Token} change`)
-                            .then((addr) => {
-                                tokenChangeAddress = addr;
-                            })
-                            .catch((error) => {
-                                log.error(
-                                    `Failed to fetch ${info.Token} change address: ${error}, fall back to deposit address`,
-                                );
-                                tokenChangeAddress =
-                                    btcChangeAddress || confDepositAddress;
-                            });
-                    }
-                });
-        }
-    }
-
-    // returns a new address
-    async function getChangeAddress(label: string): Promise<string | null> {
-        try {
-            const addr = decryptString(await fetchEncrypted("address", label));
-
-            if (!addr) {
-                log.error("Error decrypting new address for", label);
-                return null;
-            }
-
-            log.debug("Fetched new address for", label);
-            return addr;
-        } catch (error) {
-            log.error("Error getting new address:", error);
-            return null;
         }
     }
 
@@ -1214,21 +1158,18 @@ void (async () => {
     }
 
     // fetches base64 response from wallet API
-    async function fetchEncrypted(
-        method: string,
-        argument: string,
-    ): Promise<string> {
-        const request = encryptRequest(method, argument);
+    async function fetchEncrypted(method: string): Promise<string> {
+        const request = encryptRequest(method);
         const response = await fetch(`${config.apiUrl}/${request}`, {
             signal: AbortSignal.timeout(API_TIMEOUT),
         });
         if (!response.ok) {
-            throw new Error(`Failed to fetch Info: ${response.statusText}`);
+            throw new Error(`Failed to fetch: ${response.statusText}`);
         }
         const responseText = await response.text();
         if (responseText == "stale timestamp") {
             displayError = "Please synchronize your clock";
-            throw new Error(`Failed to fetch Info: ${response.statusText}`);
+            throw new Error(`Failed to fetch: ${response.statusText}`);
         }
         return responseText;
     }
@@ -1236,7 +1177,13 @@ void (async () => {
     // fetch wallet info, including private and blinding keys for UTXOs
     async function getInfo(): Promise<WalletInfo | null> {
         try {
-            return decryptInfo(await fetchEncrypted("info", ""));
+            const response = await fetch(`${config.apiUrl}/info`, {
+                signal: AbortSignal.timeout(API_TIMEOUT),
+            });
+            if (!response.ok) {
+                throw new Error(`Failed to fetch: ${response.statusText}`);
+            }
+            return (await response.json()) as WalletInfo;
         } catch (error) {
             log.error("Error fetching Info:", error);
             throw error;

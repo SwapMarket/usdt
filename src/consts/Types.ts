@@ -41,3 +41,9 @@ export function isUTXO(obj: unknown): obj is UTXO {
         typeof (obj as UTXO).PubBlind === "string"
     );
 }
+
+export declare type Addresses = {
+    Deposit: UTXO;
+    ChangeBTC: string;
+    ChangeToken: string;
+};
