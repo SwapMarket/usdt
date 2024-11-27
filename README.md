@@ -4,4 +4,4 @@ A proof-of-concept implementation of "Exchange in a Browser" idea. You trade aga
 
 To prove available reserves, balances are computed from the keys. The deposit address is also derived from a new private and blinding keys. These keys, along with TxId and Vout are added to the wallet's available UTXOs after funding. This ensures automatic refund in an unlikely event that the purchased asset is not available (some other user purchased all or most of it while your trade was pending). 
 
-All trades have blinded amounts and assets, with outputs randomized. Private keys are (hopefully!) well protected by encryption and code obfuscation.
+All trades have blinded amounts and assets, with the order of inputs and outputs randomized. Our private keys are (hopefully!) well protected by encryption and code obfuscation.
