@@ -232,7 +232,7 @@ void (async () => {
                 />
             </div>
             <div class="container" style="display:${confWithdrawalAddress ? "block" : "none"}">
-                <p style="word-wrap: break-word">Withdrawal addrerss: ${confWithdrawalAddress} (confidential) / ${explWithdrawalAddress} (explicit)</p>
+                <p style="word-wrap: break-word">Withdrawal address: ${confWithdrawalAddress} (confidential) / ${explWithdrawalAddress} (explicit)</p>
                 <p>Step 2. Send Liquid BTC or ${info.TokenName} to this address:</p>
                 <p id="depositAddress" class="copy-text"">${confDepositAddress ? confDepositAddress : " Deriving..."}</p>
             </div>
