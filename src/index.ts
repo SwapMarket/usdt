@@ -314,6 +314,7 @@ void (async () => {
             setStatus("");
         } else {
             // fetch a new addresses, then show
+            setStatus("Fetching deposit address...");
             await getAddresses();
             await showDepositAddress();
         }
