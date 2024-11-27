@@ -231,7 +231,7 @@ void (async () => {
                     value=""
                 />
             </div>
-            <div class="container" style="display:${confWithdrawalAddress ? "block" : "none"}">
+            <div class="container" style="display:${confWithdrawalAddress && !withdrawalComplete ? "block" : "none"}">
                 <p style="word-wrap: break-word">Withdrawal address: ${confWithdrawalAddress} (confidential) / ${explWithdrawalAddress} (explicit)</p>
                 <p>Step 2. Send Liquid BTC or ${info.TokenName} to this address:</p>
                 <p id="depositAddress" class="copy-text"">${confDepositAddress ? confDepositAddress : " Deriving..."}</p>
@@ -600,6 +600,7 @@ void (async () => {
                         if (success) {
                             withdrawalComplete = true;
                             clearInterval(interval);
+                            renderPage();
                         } else {
                             // recalculate wallet balance to try again
                             setStatus(`Refreshing wallet balances...`, true);
