@@ -28,12 +28,11 @@ body {
     margin: 0;
     display: flex;
     place-items: center;
-    min-width: 320px;
     min-height: 100vh;
 }
 
 h1 {
-    font-size: 64px;
+    font-size: clamp(24px, 6vw, 64px); /* Scales between 24px and 64px */
     line-height: 1.05;
     background: linear-gradient(
         20deg,
@@ -43,7 +42,17 @@ h1 {
     background-clip: text;
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
-    margin: 24px 12px 12px;
+    margin: 2vw 1vw; /* Scales margins proportionally */
+    white-space: nowrap; /* Prevents wrapping */
+    overflow: hidden; /* Hides overflow if necessary */
+    text-align: center; /* Optional: Centers text horizontally */
+}
+
+h3 {
+    font-size: clamp(6px, 6vw, 16px);
+    white-space: nowrap; /* Prevents wrapping */
+    overflow: hidden; /* Hides overflow if necessary */
+    text-align: center; /* Optional: Centers text horizontally */
 }
 
 #app {
@@ -108,12 +117,16 @@ button:focus-visible {
 
 /* Centering the input box */
 .container {
-    display: flex;
+    display: block;
     justify-content: center; /* Centers horizontally */
-    align-items: center; /* Centers vertically */
-    width: 90%;
+    width: 95%;
     max-width: 600px;
     margin: 0 auto;
+    word-wrap: break-word; /* Breaks long words */
+    overflow-wrap: break-word; /* Ensures compatibility */
+    word-break: break-word; /* Legacy property, still useful */
+    max-width: 100%; /* Prevent container from exceeding viewport */
+    box-sizing: border-box; /* Includes padding/borders in width */
 }
 
 .input-box {
@@ -135,6 +148,7 @@ button:focus-visible {
 
 .copy-text {
     font-weight: 500;
+    justify-content: center;
     color: #5db2a5;
     cursor: pointer;
     width: 100%;
@@ -146,11 +160,12 @@ button:focus-visible {
 }
 
 .btn-small {
-    display: inline-block;
+    display: inline-flex;
+    align-items: center; /* Vertically center the content */
     background-color: #ffffff;
-    color: #14283f;
-    border-radius: 7px;
-    padding: 0 12px;
+    color: #000000;
+    border-radius: 5px;
+    padding: 0 10px;
     cursor: pointer;
     text-decoration: none;
 }

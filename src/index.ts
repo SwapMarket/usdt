@@ -219,7 +219,7 @@ void (async () => {
             <p>Send ${info.TokenName} (min $${formatValue(tradeMinToken / 100_000_000, "USD")}, max $${formatValue(tradeMaxToken / 100_000_000, "USD")}) to receive L-BTC</p>
             <h2><span id="rate">${exchangeRateText}</span> BTC/${info.Token}</h2>
             <p>Fee: ${info.FeeRatePPM / 10_000}% + ${info.FeeBaseSats} sats</p>
-            <div class="container" style="display:${explWithdrawalAddress || !limitsValidated ? "none" : "block"}">
+            <div class="container" style="display:${confWithdrawalAddress || !limitsValidated ? "none" : "block"}">
                 <label for="return-address">Step 1. Paste your confidential withdrawal address:</label>
                 <br><br>
                 <input
@@ -232,9 +232,9 @@ void (async () => {
                 />
             </div>
             <div class="container" style="display:${confWithdrawalAddress && !withdrawalComplete ? "block" : "none"}">
-                <p style="word-wrap: break-word">Withdrawal address: ${confWithdrawalAddress} (confidential) / ${explWithdrawalAddress} (explicit)</p>
+                <p>Withdrawal address: ${confWithdrawalAddress} (confidential) / ${explWithdrawalAddress} (explicit)</p>
                 <p>Step 2. Send Liquid BTC or ${info.TokenName} to this address:</p>
-                <p id="depositAddress" class="copy-text"">${confDepositAddress ? confDepositAddress : " Deriving..."}</p>
+                <p id="depositAddress" class="copy-text">${confDepositAddress ? confDepositAddress : " Deriving..."}</p>
             </div>
             <div class="container">
                 <p id="status">${statusText}</p>
@@ -962,9 +962,11 @@ void (async () => {
         log.info("Wallet reserves validated");
 
         while (!exchangeRate) {
-            log.warn("No Bitfinex price feed, wait 5 seconds.");
             // wait for price feed
-            await new Promise((f) => setTimeout(f, 5000));
+            await new Promise((f) => setTimeout(f, 2000));
+            if (!exchangeRate) {
+                log.warn("No Bitfinex price feed, wait 2 seconds.");
+            }
         }
 
         setTradeLimits(exchangeRate);

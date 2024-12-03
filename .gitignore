@@ -3,3 +3,4 @@ dist/
 node_modules/
 public/config.json
 .env
+public/wasm/
