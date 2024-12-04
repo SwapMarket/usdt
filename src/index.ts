@@ -233,7 +233,7 @@ void (async () => {
             </div>
             <div class="container" style="display:${confWithdrawalAddress && !withdrawalComplete ? "block" : "none"}">
                 <p>Withdrawal address: ${confWithdrawalAddress} (confidential) / ${explWithdrawalAddress} (explicit)</p>
-                <p>Step 2. Send Liquid BTC or ${info.TokenName} to this address:</p>
+                <p>Step 2. Deposit Liquid BTC or ${info.TokenName} to this address:</p>
                 <p id="depositAddress" class="copy-text">${confDepositAddress ? confDepositAddress : " Deriving..."}</p>
             </div>
             <div class="container">
@@ -241,10 +241,11 @@ void (async () => {
             </div>
             <p>
                 <small>
-                    Commit: 
+                    Commit:
                     <a
+                        title="Click to read about the app"
                         target="_blank"
-                        href="${config.repoUrl}/commit/${__GIT_COMMIT__}">
+                        href="${config.repoUrl}?tab=readme-ov-file#liquid-btcusdt-swaps">
                         ${__GIT_COMMIT__}
                     </a>
                 </small>
