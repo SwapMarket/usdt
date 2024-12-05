@@ -286,7 +286,7 @@ void (async () => {
             appElement.innerHTML = HTML_BODY();
         }
 
-        exchangeRateText = formatValue(exchangeRate, "USD");
+        exchangeRateText = formatValue(exchangeRate, "sats");
         const element = document.getElementById("rate");
         if (element) {
             element.textContent = exchangeRateText;
