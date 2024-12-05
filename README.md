@@ -4,7 +4,7 @@ A proof-of-concept implementation of "Exchange in a Browser". You trade against 
 
 ## FAQ
 
-- How trustless is this? 
+- Is this trustless? 
 
 To prove available reserves, UTXO balances are fetched from a third party explorer (blockstream.info). Your deposit address is derived from a private/blinding key pair. These keys, along with your funding TxId and Vout are added to the available UTXOs. This ensures automatic refund in an unlikely event that the purchased asset is no longer available (some other user purchased all or most of it while your trade was pending). 
 
