@@ -245,7 +245,7 @@ void (async () => {
                     <a
                         title="Click to read about the app"
                         target="_blank"
-                        href="${config.repoUrl}?tab=readme-ov-file#liquid-btcusdt-swaps">
+                        href="${config.repoUrl}/blob/main/README.md">
                         ${__GIT_COMMIT__}
                     </a>
                 </small>
