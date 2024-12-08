@@ -20,4 +20,4 @@ Boltz does not trade BTC/USDt because of the [free option problem](https://blog.
 
 - Why is nobody else doing this?
 
-It is very tricky to let a web app handle private keys, while making its source code open. We implemented security measures, but won't discuss them here.
+It is very tricky to let a web app handle private keys, while making its source code open. We implemented security measures, but won't discuss them here. To report vilnerability, please use [email](swapmarket.wizard996@passinbox.com).
