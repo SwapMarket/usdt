@@ -33,6 +33,8 @@ import {
     reverseHex,
     scrambleArray,
     toSats,
+    getUrlParam, 
+    urlParamIsSet,
 } from "./utils";
 import {
     decryptAddresses,
@@ -55,7 +57,7 @@ const POLL_INTERVAL = 5_000; // frequency of mempool transaction polling, ms
 // Global variables
 let network: networks.Network;
 let exchangeRate: number | null = null;
-let exchangeRateText = "Loading...";
+let exchangeRateText = "Connecting...";
 let hasError = false;
 let displayError =
     "We're experiencing issues loading the necessary information. Please try again later.";
@@ -83,6 +85,8 @@ let tradeMaxBTC = 0; // denomitaned in sats
 let tradeMaxToken = 0; // denomitaned in sats
 let balanceBTC = 0; // denomitaned in sats
 let balanceToken = 0; // denomitaned in sats
+let resumeLink = "";
+let ws: BitfinexWS;
 
 // fetched from a wallet API
 let walletUTXOs: UTXO[] | null = null;
@@ -116,7 +120,7 @@ void (async () => {
                 log.info("Fetched wallet info");
 
                 // Initialize Bitfinex WebSocket with callback to update exchangeRate
-                new BitfinexWS(info.Ticker, updateExchangeRate);
+                ws = new BitfinexWS(info.Ticker, updateExchangeRate);
 
                 // initialize asset lookup map
                 if (!assetIdMap) {
@@ -134,10 +138,20 @@ void (async () => {
                 // round to $1
                 tradeMinToken = toSats(Math.round(fromSats(info.MinBuyToken)));
                 setTradeLimits(assumedFX);
+
+                const withdrawalAddr = getUrlParam("w");
+                if (urlParamIsSet(withdrawalAddr)) {
+                    if (setWithdrawalAddress(withdrawalAddr)) {
+                        log.info("Withdrawal address provided in URL");
+                    } else {
+                        log.warn("Invalid withdrawal address provided");
+                    }
+                }
             })
             .catch((error) => {
                 log.error("Failed to load wallet info", error);
                 hasError = true;
+                ws.disconnect();
             })
             .finally(() => renderPage());
 
@@ -160,23 +174,47 @@ void (async () => {
                                 .then(() => {
                                     limitsValidated = true;
                                     statusText = "";
-                                    renderPage();
+
+                                    const depositAddr = getUrlParam("d");
+                                    if (urlParamIsSet(depositAddr)) {
+                                        getAddresses(depositAddr)
+                                            .then(() => {
+                                                showDepositAddress()
+                                                    .catch((error) => {
+                                                        displayError = "Failed to resume swap: " + error;
+                                                        hasError = true;
+                                                        ws.disconnect();
+                                                    })
+                                            })
+                                            .catch((error) => {
+                                                displayError = "Failed to resume swap: " + error;
+                                                hasError = true;
+                                                ws.disconnect();
+                                            });
+                                    } else if (confWithdrawalAddress) {
+                                        displayError = "Resume link is incomplete!";
+                                        hasError = true;
+                                        ws.disconnect();
+                                    }
                                 })
                                 .catch((error) => {
-                                    setStatus(
-                                        `Failed to validate reserves! Error: ${error}`,
-                                    );
-                                });
+                                    displayError = `Failed to validate reserves: ${error}`;
+                                    hasError = true;
+                                    ws.disconnect();
+                                })
+                                .finally(() => renderPage());
                         }
                     })
                     .catch((error) => {
                         log.error("Failed to fetch UTXOs", error);
                         hasError = true;
+                        ws.disconnect();
                     });
             })
             .catch((error) => {
                 log.error("Failed to initialize WASM and Go runtime", error);
                 hasError = true;
+                ws.disconnect();
             });
 
         // Initialize blinder classes
@@ -189,17 +227,23 @@ void (async () => {
             .catch((error) => {
                 log.error("Failed to initialize zkp", error);
                 hasError = true;
+                ws.disconnect();
             });
     } catch (error) {
         log.error("Failed to connect:", error);
         hasError = true;
+        ws.disconnect();
     }
 
     const ERROR_MESSAGE = () => {
-        return `<div style="text-align: center;">
-            <h2>Error connecting to the exchange</h2>
-            <p>${displayError}</p>
-        </div>`;
+        let t = `<div style="text-align: center;">
+            <h2>Connection Lost!</h2>
+            <p>${displayError}</p>`;
+        if (resumeLink) {
+            t += `If you have already sent the deposit, DO NOT reload this page or your funds WILL BE LOST.<br><br>Save <a href="${resumeLink}">this link</a> to resume the swap when you are back online.`;
+        }
+        t += `</div>`;
+        return t;
     };
 
     const HTML_BODY = () => {
@@ -233,7 +277,7 @@ void (async () => {
             </div>
             <div class="container" style="display:${confWithdrawalAddress && !withdrawalComplete ? "block" : "none"}">
                 <p>Withdrawal address: ${confWithdrawalAddress} (confidential) / ${explWithdrawalAddress} (explicit)</p>
-                <p>Step 2. Deposit Liquid BTC or ${info.TokenName} to this address:</p>
+                <p>Step 2. Deposit Liquid BTC or ${info.TokenName} to this address (click to copy):</p>
                 <p id="depositAddress" class="copy-text">${confDepositAddress ? confDepositAddress : " Deriving..."}</p>
             </div>
             <div class="container">
@@ -263,9 +307,6 @@ void (async () => {
                 if (element) {
                     element.textContent = confDepositAddress + " (copied)";
                 }
-                setStatus(
-                    "Keep this page open and do not refresh! Awaiting deposit...",
-                );
             })
             .catch((err) => {
                 alert("Failed to copy text: " + err);
@@ -274,44 +315,52 @@ void (async () => {
 
     // Function to update the global exchangeRate
     function updateExchangeRate(price: number | null) {
-        exchangeRate = price;
-        const appElement = document.querySelector<HTMLDivElement>("#app");
+        const wasError = hasError;
 
-        if (appElement && (!exchangeRate || hasError)) {
-            // Update the HTML content to display an error message
-            appElement.innerHTML = ERROR_MESSAGE();
-            return;
-        } else if (appElement && appElement.innerHTML == ERROR_MESSAGE()) {
-            // Update the HTML content to display as normal
-            appElement.innerHTML = HTML_BODY();
+        hasError = !price;
+       
+        if (wasError != hasError) {
+            // changed error status
+            renderPage();
         }
 
-        exchangeRateText = formatValue(exchangeRate, "sats");
-        const element = document.getElementById("rate");
-        if (element) {
-            element.textContent = exchangeRateText;
-        }
+        if (!hasError) {
+            exchangeRate = price;
+            exchangeRateText = formatValue(exchangeRate, "sats");
+            const element = document.getElementById("rate");
+            if (element) {
+                element.textContent = exchangeRateText;
+            }
 
-        // Update the document title with the mid-price
-        document.title = `${exchangeRateText} BTC/${info.Token}`;
+            // Update the document title with the mid-price
+            document.title = `${exchangeRateText} BTC/${info.Token}`;
+        }
     }
+
+    function setWithdrawalAddress(addr: string): boolean {
+        try {
+            if (address.decodeType(addr, network) > 3) {
+                confWithdrawalAddress = addr;
+                explWithdrawalAddress =
+                    address.fromConfidential(
+                        confWithdrawalAddress,
+                    ).unconfidentialAddress;
+                return true;
+            } 
+        } catch (error) {
+            log.error(error);
+            setStatus(
+                `Confidential ${config.network} address expected`,
+            );
+        }
+        return false;
+    }
+    
 
     async function showDepositAddress() {
         if (confDepositAddress) {
             // redraw web page
             renderPage();
-
-            const element = document.getElementById("depositAddress");
-            if (element) {
-                element.textContent = confDepositAddress;
-
-                // Attach the function to the element
-                element.addEventListener("click", copyToClipboard);
-            }
-
-            // Start polling for transactions
-            interval = setInterval(pollForTransactions, POLL_INTERVAL);
-
             setStatus("");
         } else {
             // fetch a new addresses, then show
@@ -330,23 +379,18 @@ void (async () => {
             ? ERROR_MESSAGE()
             : HTML_BODY();
 
-        // add listener to the input field
         if (!hasError) {
-            const inputField = document.getElementById("return-address");
+            setTimeout(() => {
+                // add listener to the input field
+                const inputField = document.getElementById("return-address");
 
-            // Function to toggle visibility based on input value
-            async function toggleContentVisibility() {
-                // verify address
-                if (inputField) {
-                    const addr = (inputField as HTMLInputElement).value;
-                    if (addr) {
-                        try {
-                            if (address.decodeType(addr, network) > 3) {
-                                confWithdrawalAddress = addr;
-                                explWithdrawalAddress =
-                                    address.fromConfidential(
-                                        confWithdrawalAddress,
-                                    ).unconfidentialAddress;
+                // Function to toggle visibility based on input value
+                async function toggleContentVisibility() {
+                    // verify address
+                    if (inputField) {
+                        const addr = (inputField as HTMLInputElement).value;
+                        if (addr) {
+                            if (setWithdrawalAddress(addr)) {
                                 await showDepositAddress();
                                 return;
                             } else {
@@ -354,23 +398,36 @@ void (async () => {
                                     `Confidential ${config.network} address expected`,
                                 );
                             }
-                        } catch (error) {
-                            log.error(error);
-                            setStatus(
-                                `Confidential ${config.network} address expected`,
-                            );
+                            return;
                         }
-                        return;
                     }
                 }
-            }
 
-            if (inputField) {
-                // Add event listener for paste event
-                inputField.addEventListener("paste", () => {
-                    setTimeout(toggleContentVisibility, 0); // Delay to ensure the pasted content is read
-                });
-            }
+                if (inputField) {
+                    // Add event listener for paste event
+                    inputField.addEventListener("paste", () => {
+                        setTimeout(toggleContentVisibility, 0); // Delay to ensure the pasted content is read
+                    });
+                }
+
+                if (confDepositAddress && !withdrawalComplete) {
+                    // add listener to depositAddress link
+                    const element = document.getElementById("depositAddress");
+                    if (element) {
+                        // Attach the function to the element
+                        element.addEventListener("click", copyToClipboard);
+
+                        setStatus(
+                            "Keep this page open and do not refresh! Awaiting deposit...",
+                        );
+                        
+                        if (!interval) {
+                            // Start polling for transactions
+                            interval = setInterval(pollForTransactions, POLL_INTERVAL);
+                        }
+                    }
+                }     
+            }, 0); 
         }
     }
 
@@ -440,7 +497,33 @@ void (async () => {
             const transactions = await response.json();
 
             if (transactions.length > 0) {
+                // Look at the latest tx only
                 const depositTx = transactions[0];
+
+                // find output number
+                let vout = 0;
+                for (const output of depositTx.vout) {
+                    if (
+                        output.scriptpubkey_address === explDepositAddress
+                    ) {
+                        break;
+                    }
+                    vout++;
+                }
+
+                if (vout === depositTx.vout.length) {
+                    throw("The latest transaction does not fund the deposit address");
+                }
+
+                // check for spent outputs
+                const response = await fetch(
+                    `${config.blockExplorerUrl}/api/tx/${depositTx.txid}/outspends`,
+                );
+
+                const isSpent = await response.json();
+                if (isSpent[vout].spent!) {
+                    throw("Deposit has been spent");
+                }
 
                 if (depositTx.status.confirmed) {
                     if (lastSeenTxId === depositTx.txid) {
@@ -449,17 +532,6 @@ void (async () => {
 
                     lastSeenTxId = depositTx.txid;
                     withdrawalPending = true;
-
-                    // find output number
-                    let vout = 0;
-                    for (const output of depositTx.vout) {
-                        if (
-                            output.scriptpubkey_address === explDepositAddress
-                        ) {
-                            break;
-                        }
-                        vout++;
-                    }
 
                     // fetch value and token and append new UTXO to wallet
                     const deposit = await appendDeposit(depositTx.txid, vout);
@@ -526,7 +598,7 @@ void (async () => {
                             }
 
                             setStatus(
-                                `Exchange rate fixed at ${formatValue(fixedRate, "USD")} ${feeDirection} ${info.FeeRatePPM / 10_000}% = ${formatValue(bumpedRate, "USD")}`,
+                                `Exchange rate fixed at ${formatValue(fixedRate, "sats")} ${feeDirection} ${info.FeeRatePPM / 10_000}% = ${formatValue(bumpedRate, "sats")}`,
                                 true,
                             );
 
@@ -1012,16 +1084,29 @@ void (async () => {
     // Fetch new private and blinding keys, then generate the deposit address
     // This ensures that the client gets the refund if funding exceeds limit
     // The same request also fetches two change addresses
-    async function getAddresses() {
+    async function getAddresses(base64data?: string) {
         try {
-            const base64data = await fetchEncrypted("addresses");
+            if (!base64data) {
+                base64data = await fetchEncrypted("addresses");
+                log.debug("Fetched deposit keys and change addresses");
+            }
+
+            // save resume link
+            const params = "w=" + encodeURIComponent(confWithdrawalAddress) + "&d=" + encodeURIComponent(base64data);
+            const baseURL = document.URL;
+            if (baseURL.endsWith("?")) {
+                // If the URL already ends with '?', directly append the parameters
+                resumeLink = baseURL + params;
+            } else {
+                // If the URL has no parameters, start with '?'
+                resumeLink = baseURL + "?" + params;
+            }
+
             const addresses = decryptAddresses(base64data);
 
             depositKeys = addresses.Deposit;
             btcChangeAddress = addresses.ChangeBTC;
             tokenChangeAddress = addresses.ChangeToken;
-
-            log.debug("Fetched deposit keys and change addresses");
 
             const blindingPublicKey = Buffer.from(
                 depositKeys.PubBlind,

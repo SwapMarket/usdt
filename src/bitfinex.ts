@@ -33,6 +33,11 @@ export class BitfinexWS {
         };
     }
 
+    // Connect and wait for WebSocket connection
+    public disconnect() {
+        this.ws.close();
+    }
+
     // Helper to create a WebSocket with appropriate event handlers
     private createWebSocket(): WebSocket {
         const ws = new WebSocket(API_URL);

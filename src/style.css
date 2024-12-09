@@ -157,12 +157,14 @@ button:focus-visible {
 }
 
 .btn-small {
+    font-size: 12px;
     display: inline-flex;
     align-items: center; /* Vertically center the content */
     background-color: #ffffff;
+    text-transform: uppercase;
     color: #000000;
-    border-radius: 5px;
-    padding: 0 10px;
+    border-radius: 7px;
+    padding: 0 6px;
     cursor: pointer;
     text-decoration: none;
 }
