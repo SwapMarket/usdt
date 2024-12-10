@@ -29,11 +29,11 @@ import {
     Counter,
     formatValue,
     fromSats,
+    getUrlParam,
     isTxid,
     reverseHex,
     scrambleArray,
     toSats,
-    getUrlParam, 
     urlParamIsSet,
 } from "./utils";
 import {
@@ -179,20 +179,26 @@ void (async () => {
                                     if (urlParamIsSet(depositAddr)) {
                                         getAddresses(depositAddr)
                                             .then(() => {
-                                                showDepositAddress()
-                                                    .catch((error) => {
-                                                        displayError = "Failed to resume swap: " + error;
+                                                showDepositAddress().catch(
+                                                    (error) => {
+                                                        displayError =
+                                                            "Failed to resume swap: " +
+                                                            error;
                                                         hasError = true;
                                                         ws.disconnect();
-                                                    })
+                                                    },
+                                                );
                                             })
                                             .catch((error) => {
-                                                displayError = "Failed to resume swap: " + error;
+                                                displayError =
+                                                    "Failed to resume swap: " +
+                                                    error;
                                                 hasError = true;
                                                 ws.disconnect();
                                             });
                                     } else if (confWithdrawalAddress) {
-                                        displayError = "Resume link is incomplete!";
+                                        displayError =
+                                            "Resume link is incomplete!";
                                         hasError = true;
                                         ws.disconnect();
                                     }
@@ -318,7 +324,7 @@ void (async () => {
         const wasError = hasError;
 
         hasError = !price;
-       
+
         if (wasError != hasError) {
             // changed error status
             renderPage();
@@ -341,21 +347,17 @@ void (async () => {
         try {
             if (address.decodeType(addr, network) > 3) {
                 confWithdrawalAddress = addr;
-                explWithdrawalAddress =
-                    address.fromConfidential(
-                        confWithdrawalAddress,
-                    ).unconfidentialAddress;
+                explWithdrawalAddress = address.fromConfidential(
+                    confWithdrawalAddress,
+                ).unconfidentialAddress;
                 return true;
-            } 
+            }
         } catch (error) {
             log.error(error);
-            setStatus(
-                `Confidential ${config.network} address expected`,
-            );
+            setStatus(`Confidential ${config.network} address expected`);
         }
         return false;
     }
-    
 
     async function showDepositAddress() {
         if (confDepositAddress) {
@@ -420,14 +422,17 @@ void (async () => {
                         setStatus(
                             "Keep this page open and do not refresh! Awaiting deposit...",
                         );
-                        
+
                         if (!interval) {
                             // Start polling for transactions
-                            interval = setInterval(pollForTransactions, POLL_INTERVAL);
+                            interval = setInterval(
+                                pollForTransactions,
+                                POLL_INTERVAL,
+                            );
                         }
                     }
-                }     
-            }, 0); 
+                }
+            }, 0);
         }
     }
 
@@ -503,16 +508,14 @@ void (async () => {
                 // find output number
                 let vout = 0;
                 for (const output of depositTx.vout) {
-                    if (
-                        output.scriptpubkey_address === explDepositAddress
-                    ) {
+                    if (output.scriptpubkey_address === explDepositAddress) {
                         break;
                     }
                     vout++;
                 }
 
                 if (vout === depositTx.vout.length) {
-                    throw("The latest transaction does not fund the deposit address");
+                    throw "The latest transaction does not fund the deposit address";
                 }
 
                 // check for spent outputs
@@ -522,7 +525,7 @@ void (async () => {
 
                 const isSpent = await response.json();
                 if (isSpent[vout].spent!) {
-                    throw("Deposit has been spent");
+                    throw "Deposit has been spent";
                 }
 
                 if (depositTx.status.confirmed) {
@@ -673,6 +676,7 @@ void (async () => {
                         if (success) {
                             withdrawalComplete = true;
                             clearInterval(interval);
+                            resumeLink = "";
                             renderPage();
                         } else {
                             // recalculate wallet balance to try again
@@ -1092,7 +1096,11 @@ void (async () => {
             }
 
             // save resume link
-            const params = "w=" + encodeURIComponent(confWithdrawalAddress) + "&d=" + encodeURIComponent(base64data);
+            const params =
+                "w=" +
+                encodeURIComponent(confWithdrawalAddress) +
+                "&d=" +
+                encodeURIComponent(base64data);
             const baseURL = document.URL;
             if (baseURL.endsWith("?")) {
                 // If the URL already ends with '?', directly append the parameters

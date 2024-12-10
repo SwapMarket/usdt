@@ -21,3 +21,7 @@ Boltz does not trade BTC/USDt because of the [free option problem](https://blog.
 - Why is nobody else doing this?
 
 It is very tricky to let a web app handle private keys, while making its source code open. We implemented security measures, but won't discuss them here. To report vilnerability, please send us an [email](swapmarket.wizard996@passinbox.com).
+
+- What if I lose internet connection after funding the swap?
+
+If you funded the deposit, but the website goes offline before sending the funds back to you, it will display "resume link". Save it in your browser's bookmarks to try again when your internet is back. If you close your browser before saving the link, send us your deposit txid by [email](swapmarket.wizard996@passinbox.com).
