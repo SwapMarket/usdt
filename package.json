@@ -13,6 +13,7 @@
     "compile:go": "chmod +x build.sh && ./build.sh",
     "lint": "eslint --max-warnings 0 .",
     "testnet": "cp src/configs/testnet.json public/config.json",
+    "mainnet": "cp src/configs/mainnet.json public/config.json",
     "tsc": "tsc",
     "prettier": "npx prettier src",
     "prettier:write": "npm run prettier -- --write",

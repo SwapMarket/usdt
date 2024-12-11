@@ -122,7 +122,6 @@ button:focus-visible {
     word-wrap: break-word; /* Breaks long words */
     overflow-wrap: break-word; /* Ensures compatibility */
     word-break: break-word; /* Legacy property, still useful */
-    max-width: 100%; /* Prevent container from exceeding viewport */
     box-sizing: border-box; /* Includes padding/borders in width */
 }
 

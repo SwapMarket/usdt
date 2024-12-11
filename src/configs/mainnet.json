@@ -1,0 +1,8 @@
+{
+    "network": "mainnet",
+    "loglevel": "info",
+    "apiUrl": "http://localhost:1974",
+    "blockExplorerUrl": "https://blockstream.info/liquid",
+    "dustBTC": 500,
+    "dustToken": 2000000
+}

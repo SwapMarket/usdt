@@ -173,7 +173,7 @@ void (async () => {
                             validateReserves()
                                 .then(() => {
                                     limitsValidated = true;
-                                    statusText = "";
+                                    statusText = "Your interaction with this autonomous Web App is subject to the laws at your location. The contributors to the code and data providers to not control this interaction and cannot be held liable.";
 
                                     const depositAddr = getUrlParam("d");
                                     if (urlParamIsSet(depositAddr)) {
@@ -267,7 +267,7 @@ void (async () => {
             <h3>Non-Custodial Automatic Exchange</h3> 
             <p>Send L-BTC (min ${formatValue(tradeMinBTC, "sats")}, max ${formatValue(tradeMaxBTC, "sats")} sats) to receive ${info.TokenName}</p>
             <p>Send ${info.TokenName} (min $${formatValue(tradeMinToken / 100_000_000, "USD")}, max $${formatValue(tradeMaxToken / 100_000_000, "USD")}) to receive L-BTC</p>
-            <h2><span id="rate">${exchangeRateText}</span> BTC/${info.Token}</h2>
+            <h2 id="rate">${exchangeRateText}</h2>
             <p>Fee: ${info.FeeRatePPM / 10_000}% + ${info.FeeBaseSats} sats</p>
             <div class="container" style="display:${confWithdrawalAddress || !limitsValidated ? "none" : "block"}">
                 <label for="return-address">Step 1. Paste your confidential withdrawal address:</label>
@@ -332,14 +332,14 @@ void (async () => {
 
         if (!hasError) {
             exchangeRate = price;
-            exchangeRateText = formatValue(exchangeRate, "sats");
+            exchangeRateText = `${formatValue(exchangeRate, "sats")} BTC/${info.Token}`;
             const element = document.getElementById("rate");
             if (element) {
                 element.textContent = exchangeRateText;
             }
 
             // Update the document title with the mid-price
-            document.title = `${exchangeRateText} BTC/${info.Token}`;
+            document.title = exchangeRateText;
         }
     }
 
