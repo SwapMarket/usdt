@@ -24,4 +24,4 @@ It is very tricky to let a web app handle private keys, while making its source 
 
 - What if I lose internet connection after funding the swap?
 
-If you funded the deposit, but the website goes offline before sending the funds back to you, it will display "resume link". Save it in your browser's bookmarks to try again when your internet is back. If you close your browser before saving the link, send us your deposit txid by [email](mailto:swapmarket.wizard996@passinbox.com).
+If you funded the deposit, but the website goes offline before sending the withdrawal back to you, it will display "resume link". Save it in your browser's bookmarks to try again when your internet is back. If you closed your browser before saving the link, send us your deposit txid by [email](mailto:swapmarket.wizard996@passinbox.com) and we'll look to resolve this.

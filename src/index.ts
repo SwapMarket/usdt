@@ -473,14 +473,14 @@ void (async () => {
             }
         }
 
-        // check for spent outputs
+        // check for spent output
         const response = await fetch(
-            `${config.blockExplorerUrl}/api/tx/${utxo.TxId}/outspends`,
+            `${config.blockExplorerUrl}/api/tx/${utxo.TxId}/outspend/${utxo.Vout}`,
         );
 
         const isSpent = await response.json();
 
-        if (isSpent[utxo.Vout].spent!) {
+        if (isSpent.spent!) {
             value = 0;
         }
 
@@ -521,11 +521,11 @@ void (async () => {
 
                 // check for spent outputs
                 const response = await fetch(
-                    `${config.blockExplorerUrl}/api/tx/${depositTx.txid}/outspends`,
+                    `${config.blockExplorerUrl}/api/tx/${depositTx.txid}/outspend/${vout}`,
                 );
 
                 const isSpent = await response.json();
-                if (isSpent[vout].spent!) {
+                if (isSpent.spent!) {
                     throw "Deposit has been spent";
                 }
 
