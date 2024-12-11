@@ -173,7 +173,7 @@ void (async () => {
                             validateReserves()
                                 .then(() => {
                                     limitsValidated = true;
-                                    statusText = "Your interaction with this autonomous Web App is subject to the laws at your location. The contributors to the code and data providers to not control this interaction and cannot be held liable.";
+                                    statusText = "Your interaction with this autonomous Web App running entirely in your browser is subject to the laws at your location. The contributors to the code and data providers to not control this interaction and cannot be held liable.";
 
                                     const depositAddr = getUrlParam("d");
                                     if (urlParamIsSet(depositAddr)) {
