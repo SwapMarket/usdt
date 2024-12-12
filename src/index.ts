@@ -815,12 +815,16 @@ void (async () => {
 
         if (satsBTC > totalBTC - satsFee) {
             satsBTC = totalBTC - satsFee;
-            log.warn(`Only ${fromSats(totalBTC)} BTC available to pay ${fromSats(satsBTC)} withdrawal with ${satsFee} sats fee`);
+            log.warn(
+                `Only ${fromSats(totalBTC)} BTC available to pay ${fromSats(satsBTC)} withdrawal with ${satsFee} sats fee`,
+            );
         }
 
         if (satsToken > totalToken) {
             satsToken = totalToken;
-            log.warn(`Only ${fromSats(totalToken)} ${info.TokenName} available for withdrawal`);
+            log.warn(
+                `Only ${fromSats(totalToken)} ${info.TokenName} available for withdrawal`,
+            );
         }
 
         // Add the selected UTXOs as inputs
