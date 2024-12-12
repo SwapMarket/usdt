@@ -174,7 +174,7 @@ void (async () => {
                                 .then(() => {
                                     limitsValidated = true;
                                     statusText =
-                                        "Your interaction with this autonomous Web App running entirely in your browser is subject to the laws at your location. The contributors to the code and data providers do not control this interaction and cannot be held liable.";
+                                        "Your interaction with this open source code running entirely in your browser is subject to the laws at your location. Contributors to the code and data providers are not liable for any infractions.";
 
                                     const depositAddr = getUrlParam("d");
                                     if (urlParamIsSet(depositAddr)) {
@@ -812,6 +812,16 @@ void (async () => {
         );
 
         log.debug("Selected UTXOs:", selectedUTXOs);
+
+        if (satsBTC > totalBTC - satsFee) {
+            satsBTC = totalBTC - satsFee;
+            log.warn(`Only ${fromSats(totalBTC)} BTC available to pay ${fromSats(satsBTC)} withdrawal with ${satsFee} sats fee`);
+        }
+
+        if (satsToken > totalToken) {
+            satsToken = totalToken;
+            log.warn(`Only ${fromSats(totalToken)} ${info.TokenName} available for withdrawal`);
+        }
 
         // Add the selected UTXOs as inputs
         for (const utxo of selectedUTXOs) {

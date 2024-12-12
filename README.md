@@ -1,6 +1,6 @@
 # Liquid BTC/USDt Swaps
 
-A proof-of-concept implementation of "Exchange in a Browser". You trade against an open source code hosted at GitHub Pages. No third party involved, except to provide a set of private keys + UTXOs when the page loads. The rest happens automatically: if you deposit L-BTC, you get back L-USDt and vice versa. Kind of a large smart contract.
+A proof-of-concept implementation of "Exchange in a Browser". You trade against an open source code hosted at GitHub Pages. No third party involved, except to provide a set of private keys and UTXOs when the page loads. The rest happens automatically: if you deposit L-BTC, you get back L-USDt and vice versa. Kind of a large smart contract.
 
 ## FAQ
 
