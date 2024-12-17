@@ -299,19 +299,8 @@ void (async () => {
                         target="_blank"
                         href="${config.repoUrl}/blob/main/README.md">
                         ${__GIT_COMMIT__}
-                    </a>`;
-
-        if (config.network == "mainnet" && !confWithdrawalAddress) {
-            htmlText += `<br>
-                    <a
-                        title="Switch to testnet"
-                        href="${config.repoUrl}-testnet">
-                        Testnet
                     </a>
-                `;
-        }
-    
-        htmlText += `</small>
+                </small>
             </p>
         </div>`;
 
