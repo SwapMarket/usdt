@@ -63,6 +63,7 @@ let displayError =
     "We're experiencing issues loading the necessary information. Please try again later.";
 let withdrawalPending: boolean = false;
 let withdrawalComplete: boolean = false;
+let broadcastAttempts = 0;
 let confi: confidential.Confidential;
 let secp: Secp256k1ZKP;
 let zkpValidator: ZKPValidator;
@@ -680,11 +681,20 @@ void (async () => {
                             resumeLink = "";
                             renderPage();
                         } else {
-                            // recalculate wallet balance to try again
-                            setStatus(`Refreshing wallet balances...`, true);
-                            await validateReserves();
-                            // try again
-                            lastSeenTxId = "";
+                            broadcastAttempts++;
+                            if (broadcastAttempts < 3) {
+                                // recalculate wallet balance to try again
+                                setStatus(
+                                    `Refreshing wallet balances...`,
+                                    true,
+                                );
+                                await validateReserves();
+                                // try again
+                                lastSeenTxId = "";
+                            } else {
+                                // stop trying after 3 failures
+                                clearInterval(interval);
+                            }
                         }
                     } else {
                         // ignore the deposit
@@ -786,7 +796,7 @@ void (async () => {
 
             return true;
         } else {
-            setStatus(`Error: ${result}`, true);
+            setStatus(`Error: ${result}<br><br>Tx hex: ${txHex}`, true);
             return false;
         }
     }
