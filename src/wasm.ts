@@ -2,7 +2,7 @@ import type { Addresses, UTXO } from "./consts/Types";
 import { isUTXO } from "./consts/Types";
 
 const WASM_URL = "wasm/main.wasm";
-const WASM_EXEC_URL = "/usdt/wasm_exec.js";
+const WASM_EXEC_URL = "wasm_exec.js";
 
 type GoConstructor = new () => {
     argv: string[];
