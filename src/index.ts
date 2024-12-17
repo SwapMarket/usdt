@@ -310,7 +310,7 @@ void (async () => {
                     </a>
                 `;
         }
-    
+
         htmlText += `</small>
             </p>
         </div>`;

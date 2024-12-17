@@ -63,7 +63,7 @@ export default defineConfig({
             'application/wasm': ['wasm']
         }
     },
-    base: '/usdt/',
+    base: "/usdt/",
     build: {
         target: 'esnext', // Ensures support for modern JavaScript features
         commonjsOptions: {
