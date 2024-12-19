@@ -175,7 +175,7 @@ void (async () => {
                                 .then(() => {
                                     limitsValidated = true;
                                     statusText =
-                                        "Your interaction with this autonomous code running entirely in your browser is subject to your local laws. Open source code contributors and data providers are not liable for any infractions.";
+                                        "<small>Your interaction with this autonomous code running entirely in your browser is subject to your local laws. Open source code contributors and data providers are not liable for any infractions.</small>";
 
                                     const depositAddr = getUrlParam("d");
                                     if (urlParamIsSet(depositAddr)) {
