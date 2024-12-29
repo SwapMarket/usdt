@@ -174,8 +174,7 @@ void (async () => {
                             validateReserves()
                                 .then(() => {
                                     limitsValidated = true;
-                                    statusText =
-                                        "<small>Your interaction with this autonomous code running entirely in your browser is subject to your local laws. Open source code contributors and data providers are not liable for any infractions.</small>";
+                                    statusText = `<small>This exchange is running entirely in your browser and has loaded all the data necesary for autonomous operation. <a title="Click to read about the app" target="_blank" href="${config.repoUrl}/blob/main/README.md">FAQ</a></small>`;
 
                                     const depositAddr = getUrlParam("d");
                                     if (urlParamIsSet(depositAddr)) {
@@ -295,9 +294,8 @@ void (async () => {
                 <small>
                     Commit:
                     <a
-                        title="Click to read about the app"
                         target="_blank"
-                        href="${config.repoUrl}/blob/main/README.md">
+                        href="${config.repoUrl}/commit/${__GIT_COMMIT__}">
                         ${__GIT_COMMIT__}
                     </a>
                 </small>
