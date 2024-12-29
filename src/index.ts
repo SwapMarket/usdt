@@ -174,7 +174,7 @@ void (async () => {
                             validateReserves()
                                 .then(() => {
                                     limitsValidated = true;
-                                    statusText = `<small>This exchange is running entirely in your browser and has loaded all the data necesary for autonomous operation. Read <a title="Click to read about the app" target="_blank" href="${config.repoUrl}/blob/main/README.md">FAQ</a>`;
+                                    statusText = `<small>This exchange is running entirely in your browser and has loaded all the data necessary for autonomous operation. Read <a title="Click to read about the app" target="_blank" href="${config.repoUrl}/blob/main/README.md">FAQ</a>`;
                                     if (config.network == "mainnet") {
                                         statusText += ` or try it on <a target="_blank" href="${config.testnetUrl}">Testnet</a> first`;
                                     }
