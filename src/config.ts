@@ -6,6 +6,7 @@ const defaults = {
     telegramUrl: "https://t.me/+w0F2zxxoLg85YzM6",
     email: "swapmarket.wizard996@passinbox.com",
     repoUrl: "https://github.com/SwapMarket/usdt",
+    testnetUrl: "https://swapmarket.github.io/usdt-testnet",
 };
 
 export type Config = {
