@@ -49,6 +49,11 @@ const commitHash = child
     .toString()
     .trim();
 
+const commitDate = child
+    .execSync("git log -1 --format=%cd --date=format:%Y-%m-%d")
+    .toString()
+    .trim();
+
 export default defineConfig({
     plugins: [
         wasm(),
@@ -81,5 +86,6 @@ export default defineConfig({
     define: {
         __APP_VERSION__: JSON.stringify(process.env.npm_package_version),
         __GIT_COMMIT__: JSON.stringify(commitHash),
+        __GIT_DATE__: JSON.stringify(commitDate),
     },
 });

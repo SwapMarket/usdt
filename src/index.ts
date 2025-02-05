@@ -176,7 +176,7 @@ void (async () => {
                                     limitsValidated = true;
                                     statusText = `<small>This exchange is running entirely in your browser and has loaded all the data necessary for autonomous operation. Read <a title="Click to read about the app" target="_blank" href="${config.repoUrl}/blob/main/README.md">FAQ</a>`;
                                     if (config.network == "mainnet") {
-                                        statusText += ` or try it on <a target="_blank" href="${config.testnetUrl}">Testnet</a> first`;
+                                        statusText += ` or try it on <a target="_blank" href="${config.testnetUrl}">Liquid Testnet</a>`;
                                     }
                                     statusText += `.</small>`;
 
@@ -275,7 +275,7 @@ void (async () => {
             <h2 id="rate">${exchangeRateText}</h2>
             <p>Fee: ${info.FeeRatePPM / 10_000}% + ${info.FeeBaseSats} sats</p>
             <div class="container" style="display:${confWithdrawalAddress || !limitsValidated ? "none" : "block"}">
-                <label for="return-address">Step 1. Paste your confidential withdrawal address:</label>
+                <label for="return-address">Step 1/2. Paste your confidential withdrawal address:</label>
                 <br><br>
                 <input
                     class="input-box"
@@ -288,7 +288,7 @@ void (async () => {
             </div>
             <div class="container" style="display:${confWithdrawalAddress && !withdrawalComplete ? "block" : "none"}">
                 <p>Withdrawal address: ${confWithdrawalAddress} (confidential) / ${explWithdrawalAddress} (explicit)</p>
-                <p>Step 2. Deposit Liquid BTC or ${info.TokenName} to this address (click to copy):</p>
+                <p>Step 2/2. Deposit Liquid BTC or ${info.TokenName} to this address (click to copy):</p>
                 <p id="depositAddress" class="copy-text">${confDepositAddress ? confDepositAddress : " Deriving..."}</p>
             </div>
             <div class="container">
@@ -300,7 +300,7 @@ void (async () => {
                     <a
                         target="_blank"
                         href="${config.repoUrl}/commit/${__GIT_COMMIT__}">
-                        ${__GIT_COMMIT__}
+                        ${__GIT_COMMIT__} dated ${__GIT_DATE__}
                     </a>
                 </small>
             </p>
