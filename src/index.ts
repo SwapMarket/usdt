@@ -300,8 +300,8 @@ void (async () => {
                     <a
                         target="_blank"
                         href="${config.repoUrl}/commit/${__GIT_COMMIT__}">
-                        ${__GIT_COMMIT__} dated ${__GIT_DATE__}
-                    </a>
+                        ${__GIT_COMMIT__}
+                    </a> of ${__GIT_DATE__}
                 </small>
             </p>
         </div>`;
