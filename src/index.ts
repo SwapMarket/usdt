@@ -307,7 +307,7 @@ void (async () => {
             <a
                 href="${config.homeUrl}${config.network == "testnet" ? "/testnet" : ""}">
                 <Image
-                    src="/usdt${config.network == "testnet" ? "-testnet" : ""}/sm_icon.svg"
+                    src="${import.meta.env.BASE_URL}/sm_icon.svg"
                     alt="SwapMarket"
                     height=50
                     width=auto
