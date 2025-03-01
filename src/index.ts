@@ -305,9 +305,9 @@ void (async () => {
                 </small>
             </p>
             <a
-                href="${config.homeUrl}${config.network == 'testnet' ? '/testnet' : ''}">
+                href="${config.homeUrl}${config.network == "testnet" ? "/testnet" : ""}">
                 <Image
-                    src="/usdt${config.network == 'testnet' ? '-testnet' : ''}/sm_icon.svg"
+                    src="/usdt${config.network == "testnet" ? "-testnet" : ""}/sm_icon.svg"
                     alt="SwapMarket"
                     height=50
                     width=auto
