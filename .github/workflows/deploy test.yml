@@ -2,22 +2,41 @@
 name: Deploy test
 
 on:
-  # only run if CI successful
+  # Only run if CI successful and on the test branch
   workflow_run:
     workflows: ["CI"]  # Name of the upstream workflow
     types:
       - completed
-    
+
   # Allows you to run this workflow manually from the Actions tab
   workflow_dispatch:
 
 jobs:
-  # Deploy testnet
   testnet:
-    # Only run if CI was successful
-    if: github.event.workflow_run.conclusion == 'success'
     runs-on: ubuntu-latest
+    if: github.event.workflow_run.conclusion == 'success'
+    
     steps:
+      - name: Get triggering workflow details
+        uses: octokit/request-action@v2.x
+        id: get_workflow_run
+        with:
+          route: GET /repos/${{ github.repository_owner }}/${{ github.event.repository.name }}/actions/runs/${{ github.event.workflow_run.id }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Check if CI ran on test branch
+        run: |
+          BRANCH=$(echo '${{ steps.get_workflow_run.outputs.response_body }}' | jq -r '.head_branch')
+          if [[ "$BRANCH" != "test" ]]; then
+            echo "CI did not run on test branch. Exiting..."
+            exit 1
+          fi
+
+      - name: Deploy testnet version
+        run: |
+          echo "Deploying testnet version..."
+
       - name: Trigger repository dispatch in testnet
         run: |
           curl -X POST \
