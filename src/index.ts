@@ -178,7 +178,7 @@ void (async () => {
                                     if (config.network == "mainnet") {
                                         statusText += ` and try it on <a target="_blank" href="${config.testnetUrl}">Liquid Testnet</a>`;
                                     }
-                                    statusText += `.<br><br><strong><i>Now also on <a target="_blank" href="${config.tdexUrl}">TDEX</a>!</i></strong></small>`;
+                                    statusText += `.</small>`;
 
                                     const depositAddr = getUrlParam("d");
                                     if (urlParamIsSet(depositAddr)) {
@@ -275,7 +275,7 @@ void (async () => {
             <h2 id="rate">${exchangeRateText}</h2>
             <p>Fee: ${info.FeeRatePPM / 10_000}% + ${info.FeeBaseSats} sats</p>
             <div class="container" style="display:${confWithdrawalAddress || !limitsValidated ? "none" : "block"}">
-                <label for="return-address"><strong><u>Step 1/2</u></strong> Paste your confidential withdrawal address:</label>
+                <label for="return-address"><strong><u>Step 1 of 2</u></strong> Paste your confidential withdrawal address:</label>
                 <br><br>
                 <input
                     class="input-box"
@@ -288,11 +288,32 @@ void (async () => {
             </div>
             <div class="container" style="display:${confWithdrawalAddress && !withdrawalComplete ? "block" : "none"}">
                 <p>Your withdrawal address: ${confWithdrawalAddress} (confidential) / ${explWithdrawalAddress} (explicit)</p>
-                <p><strong><u>Step 2/2</u></strong> Send Liquid BTC or ${info.TokenName} to this address (click to copy):</p>
+                <p><strong><u>Step 2 of 2</u></strong> Send Liquid BTC or ${info.TokenName} to this address (click to copy):</p>
                 <p id="depositAddress" class="copy-text">${confDepositAddress ? confDepositAddress : " Deriving..."}</p>
             </div>
             <div class="container">
                 <p id="status">${statusText}</p>
+            </div>
+            <div>
+                <a
+                    href="${config.homeUrl}${config.network == "testnet" ? "/testnet" : ""}">
+                    <Image
+                        src="${import.meta.env.BASE_URL}/sm_icon.svg"
+                        alt="SwapMarket"
+                        height=50
+                        width=auto
+                    />
+                </a>
+                <a
+                    target="_blank"
+                    href="${config.tdexUrl}">
+                    <Image
+                        src="${import.meta.env.BASE_URL}/tdex_logo.svg"
+                        alt="TDEX"
+                        height=50
+                        width=auto
+                    />
+                </a>
             </div>
             <p>
                 <small>
@@ -304,15 +325,6 @@ void (async () => {
                     </a> of ${__GIT_DATE__}
                 </small>
             </p>
-            <a
-                href="${config.homeUrl}${config.network == "testnet" ? "/testnet" : ""}">
-                <Image
-                    src="${import.meta.env.BASE_URL}/sm_icon.svg"
-                    alt="SwapMarket"
-                    height=50
-                    width=auto
-                />
-            </a>
         </div>`;
 
         return htmlText;

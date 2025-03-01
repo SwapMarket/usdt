@@ -30,7 +30,7 @@ jobs:
           BRANCH=$(echo '${{ steps.get_workflow_run.outputs.response_body }}' | jq -r '.head_branch')
           if [[ "$BRANCH" != "test" ]]; then
             echo "CI did not run on test branch. Exiting..."
-            exit 1
+            exit 0
           fi
 
       - name: Deploy testnet version
