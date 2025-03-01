@@ -7,6 +7,8 @@ const defaults = {
     email: "swapmarket.wizard996@passinbox.com",
     repoUrl: "https://github.com/SwapMarket/usdt",
     testnetUrl: "https://swapmarket.github.io/usdt-testnet",
+    tdexUrl: "https://swapmarket.github.io/tdex",
+    homeUrl: "https://swapmarket.github.io",
 };
 
 export type Config = {

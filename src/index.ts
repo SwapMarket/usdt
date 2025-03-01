@@ -176,9 +176,9 @@ void (async () => {
                                     limitsValidated = true;
                                     statusText = `<small>This exchange is running entirely in your browser and has loaded all the data necessary for autonomous operation. Read <a title="Click to read about the app" target="_blank" href="${config.repoUrl}/blob/main/README.md">FAQ</a>`;
                                     if (config.network == "mainnet") {
-                                        statusText += ` or try it on <a target="_blank" href="${config.testnetUrl}">Liquid Testnet</a>`;
+                                        statusText += ` and try it on <a target="_blank" href="${config.testnetUrl}">Liquid Testnet</a>`;
                                     }
-                                    statusText += `.</small>`;
+                                    statusText += `.<br><br><strong><i>Now also on <a target="_blank" href="${config.tdexUrl}">TDEX</a>!</i></strong></small>`;
 
                                     const depositAddr = getUrlParam("d");
                                     if (urlParamIsSet(depositAddr)) {
@@ -304,6 +304,15 @@ void (async () => {
                     </a> of ${__GIT_DATE__}
                 </small>
             </p>
+            <a
+                href="${config.homeUrl}${config.network == 'testnet' ? '/testnet' : ''}">
+                <Image
+                    src="/usdt${config.network == 'testnet' ? '-testnet' : ''}/sm_icon.svg"
+                    alt="SwapMarket"
+                    height=50
+                    width=auto
+                />
+            </a>
         </div>`;
 
         return htmlText;
@@ -714,7 +723,7 @@ void (async () => {
                     }
                 } else {
                     setStatus(
-                        `Deposit is in mempool, awaiting confirmation...`,
+                        `Deposit is in mempool, awaiting confirmation... DON'T CLOSE YOUR BROWSER!`,
                     );
                 }
             }
@@ -841,9 +850,6 @@ void (async () => {
 
         // Add the selected UTXOs as inputs
         for (const utxo of selectedUTXOs) {
-            // this only works with p2wph
-            // if receive p2sh (change from SideSwap deposit)
-            //
             ins.push({
                 txid: utxo.TxId,
                 txIndex: utxo.Vout,
