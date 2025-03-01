@@ -275,7 +275,7 @@ void (async () => {
             <h2 id="rate">${exchangeRateText}</h2>
             <p>Fee: ${info.FeeRatePPM / 10_000}% + ${info.FeeBaseSats} sats</p>
             <div class="container" style="display:${confWithdrawalAddress || !limitsValidated ? "none" : "block"}">
-                <label for="return-address">Step 1/2. Paste your confidential withdrawal address:</label>
+                <label for="return-address"><strong><u>Step 1/2</u></strong> Paste your confidential withdrawal address:</label>
                 <br><br>
                 <input
                     class="input-box"
@@ -287,8 +287,8 @@ void (async () => {
                 />
             </div>
             <div class="container" style="display:${confWithdrawalAddress && !withdrawalComplete ? "block" : "none"}">
-                <p>Withdrawal address: ${confWithdrawalAddress} (confidential) / ${explWithdrawalAddress} (explicit)</p>
-                <p>Step 2/2. Deposit Liquid BTC or ${info.TokenName} to this address (click to copy):</p>
+                <p>Your withdrawal address: ${confWithdrawalAddress} (confidential) / ${explWithdrawalAddress} (explicit)</p>
+                <p><strong><u>Step 2/2</u></strong> Send Liquid BTC or ${info.TokenName} to this address (click to copy):</p>
                 <p id="depositAddress" class="copy-text">${confDepositAddress ? confDepositAddress : " Deriving..."}</p>
             </div>
             <div class="container">
@@ -723,7 +723,7 @@ void (async () => {
                     }
                 } else {
                     setStatus(
-                        `Deposit is in mempool, awaiting confirmation... DON'T CLOSE YOUR BROWSER!`,
+                        `Deposit is in mempool, awaiting confirmation...<br><br><strong>DO NOT CLOSE YOUR BROWSER!</strong>`,
                     );
                 }
             }
