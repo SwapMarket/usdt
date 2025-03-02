@@ -16,7 +16,7 @@ Liquid Network was built for privacy. All trades have blinded amounts and assets
 
 - How does this compare to competition?
 
-Boltz does not trade BTC/USDt because of the [free option problem](https://blog.boltz.exchange/p/the-problem-with-free-options-69f9f59a2d48). SideSwap requires you to use their own wallet to avoid it. Another approach - SideShift - is to charge you extra spread for it. There are also CEX'es, which are KYC and custodial. Our solution aims to provide a cheaper, faster, non-custodial and private way to trade.
+Boltz does not trade BTC/USDt because of the [free option problem](https://blog.boltz.exchange/p/the-problem-with-free-options-69f9f59a2d48). SideSwap requires you to use their own wallet to avoid it. Another approach - SideShift - is to charge you extra spread for it. There are also CEX'es, which are KYC and custodial. Our solution aims to provide a cheaper, faster, non-custodial and private way to trade. From Feb 2025 our L-BTC/USDt backend also competes as a liquidity provider in the decenttralized [TDEX Network](https://swapmarket.github.io/usdt/).
 
 - Why is nobody else doing this?
 
