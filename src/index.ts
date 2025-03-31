@@ -692,7 +692,7 @@ void (async () => {
                         }
 
                         setStatus(
-                            `Sending ${textAmount} to ${explWithdrawalAddress}`,
+                            `Sending ${textAmount} to ${explWithdrawalAddress}<br><br>If the process gets stuck, please right-click Inspect element - Console and send the error(s) you see to swapmarket.wizard996@passinbox.com`,
                             true,
                         );
 
