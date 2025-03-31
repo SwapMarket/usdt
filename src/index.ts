@@ -631,8 +631,12 @@ void (async () => {
                             );
 
                             // verify limits
-                            const withdrawMaxToken = Math.floor(tradeMaxBTC * bumpedRate);
-                            const withdrawMaxBTC = Math.floor(tradeMaxToken / bumpedRate);
+                            const withdrawMaxToken = Math.floor(
+                                tradeMaxBTC * bumpedRate,
+                            );
+                            const withdrawMaxBTC = Math.floor(
+                                tradeMaxToken / bumpedRate,
+                            );
 
                             if (withdrawToken > withdrawMaxToken) {
                                 // wants to withdraw too much Token, refund some BTC
@@ -1050,21 +1054,23 @@ void (async () => {
             { url: `${config.blockExplorerUrl}/api/tx`, method: "POST" },
             { url: `${config.apiUrl}/${txHex}`, method: "GET" },
         ];
-    
+
         log.debug("Broadcasting HEX:", txHex);
-    
+
         try {
             const requests = endpoints.map(({ url, method }) =>
                 fetch(url, {
                     method,
                     ...(method === "POST" ? { body: txHex } : {}), // Add body only for POST
-                })
-                .then(async res => {
-                    if (!res.ok) throw new Error(`Failed at ${url}: ${await res.text()}`);
+                }).then(async (res) => {
+                    if (!res.ok)
+                        throw new Error(
+                            `Failed at ${url}: ${await res.text()}`,
+                        );
                     return res.text();
-                })
+                }),
             );
-    
+
             const result = await Promise.any(requests); // Wait for first success
             log.info("Broadcast successful:", result);
             return result;
