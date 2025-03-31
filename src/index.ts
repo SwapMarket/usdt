@@ -692,7 +692,7 @@ void (async () => {
                         }
 
                         setStatus(
-                            `Sending ${textAmount} to ${explWithdrawalAddress}<br><br>If the process gets stuck, please right-click Inspect element - Console and send the error(s) you see to swapmarket.wizard996@passinbox.com along with your transaction details`,
+                            `Sending ${textAmount} to ${explWithdrawalAddress}`,
                             true,
                         );
 
@@ -721,6 +721,10 @@ void (async () => {
                             } else {
                                 // stop trying after 3 failures
                                 clearInterval(interval);
+                                setStatus(
+                                    `<br><br>We are sorry, the withdrawal has failed! Please right-click Inspect - Console and send the screenshot to swapmarket.wizard996@passinbox.com along with your withdrawal address`,
+                                    true,
+                                );
                             }
                         }
                     } else {
