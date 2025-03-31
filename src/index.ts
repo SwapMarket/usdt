@@ -1050,18 +1050,18 @@ void (async () => {
 
     // Broadcast the transaction to the Liquid network using two API URLs
     async function broadcastTransaction(txHex: string): Promise<string> {
-        const endpoints = [
-            { url: `${config.blockExplorerUrl}/api/tx`, method: "POST" },
-            { url: `${config.apiUrl}/${txHex}`, method: "GET" },
+        const urls = [
+            `${config.blockExplorerUrl}/api/tx`,
+            `${config.apiUrl}/broadcast`,
         ];
 
         log.debug("Broadcasting HEX:", txHex);
 
         try {
-            const requests = endpoints.map(({ url, method }) =>
+            const responses = urls.map((url) =>
                 fetch(url, {
-                    method,
-                    ...(method === "POST" ? { body: txHex } : {}), // Add body only for POST
+                    method: "POST",
+                    body: txHex,
                 }).then(async (res) => {
                     if (!res.ok)
                         throw new Error(
@@ -1071,7 +1071,7 @@ void (async () => {
                 }),
             );
 
-            const result = await Promise.any(requests); // Wait for first success
+            const result = await Promise.any(responses); // Resolves when the first succeeds
             log.info("Broadcast successful:", result);
             return result;
         } catch (error) {
