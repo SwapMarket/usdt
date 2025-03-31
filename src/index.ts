@@ -631,8 +631,8 @@ void (async () => {
                             );
 
                             // verify limits
-                            const withdrawMaxToken = tradeMaxBTC * bumpedRate;
-                            const withdrawMaxBTC = tradeMaxToken / bumpedRate;
+                            const withdrawMaxToken = Math.floor(tradeMaxBTC * bumpedRate);
+                            const withdrawMaxBTC = Math.floor(tradeMaxToken / bumpedRate);
 
                             if (withdrawToken > withdrawMaxToken) {
                                 // wants to withdraw too much Token, refund some BTC
@@ -1044,22 +1044,34 @@ void (async () => {
         return Extractor.extract(finalizer.pset);
     }
 
-    // Broadcast the transaction to the Liquid network
+    // Broadcast the transaction to the Liquid network using two API URLs
     async function broadcastTransaction(txHex: string): Promise<string> {
-        const url = `${config.blockExplorerUrl}/api/tx`;
-
+        const endpoints = [
+            { url: `${config.blockExplorerUrl}/api/tx`, method: "POST" },
+            { url: `${config.apiUrl}/${txHex}`, method: "GET" },
+        ];
+    
         log.debug("Broadcasting HEX:", txHex);
-
-        const response = await fetch(url, {
-            method: "POST",
-            body: txHex,
-        });
-
-        const result = await response.text();
-
-        log.info("Broadcast result:", result);
-
-        return result;
+    
+        try {
+            const requests = endpoints.map(({ url, method }) =>
+                fetch(url, {
+                    method,
+                    ...(method === "POST" ? { body: txHex } : {}), // Add body only for POST
+                })
+                .then(async res => {
+                    if (!res.ok) throw new Error(`Failed at ${url}: ${await res.text()}`);
+                    return res.text();
+                })
+            );
+    
+            const result = await Promise.any(requests); // Wait for first success
+            log.info("Broadcast successful:", result);
+            return result;
+        } catch (error) {
+            log.error("All broadcasts failed:", error);
+            throw new Error("Failed to broadcast transaction to all URLs");
+        }
     }
 
     async function validateReserves() {
