@@ -50,7 +50,8 @@ import {
 //await new Promise((f) => setTimeout(f, 10000));
 
 // constants
-const OUR_CONTACTS = "swapmarket.wizard996@passinbox.com or https://t.me/swapmarket_btc"
+const OUR_CONTACTS =
+    "swapmarket.wizard996@passinbox.com or https://t.me/swapmarket_btc";
 const API_TIMEOUT = 30_000; // 30 seconds max for wallet API fetching
 const FEE_RESERVE = 100; // sats
 const POLL_INTERVAL = 5_000; // frequency of mempool transaction polling, ms
@@ -777,7 +778,10 @@ void (async () => {
             );
 
             if (!tx) {
-                setStatus(`Could not finalize the transaction! Please contact SwapMarket at ${OUR_CONTACTS}`, true);  
+                setStatus(
+                    `Could not finalize the transaction! Please contact SwapMarket at ${OUR_CONTACTS}`,
+                    true,
+                );
                 return false;
             }
 
