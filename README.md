@@ -22,8 +22,8 @@ Boltz does not trade BTC/USDt because of the [free option problem](https://blog.
 
 It is very tricky to let a web app handle private keys, while making its source code open. We implemented security measures, but won't discuss them here.
 
-- What if I lose internet connection after funding the swap?
+- What if something goes wrong, i.e. I lose internet connection after funding the swap?
 
-If you funded the deposit, but the website goes offline before sending the withdrawal back to you, it will display "resume link". Save it in your browser's bookmarks to try again when your internet is back. If you closed your browser before saving the link, send us your deposit txid by [email](mailto:swapmarket.wizard996@passinbox.com) and we'll look to resolve this.
+If you funded the deposit, but the website went offline before sending the withdrawal back to you, it should display "resume link". Save it in your browser's bookmarks to try again when your internet is back. If you encounter any other issue, please open Inspect - Console in your browser and send us the screenshot via [email](mailto:swapmarket.wizard996@passinbox.com), [Telegram](https://t.me/swapmarket_btc) or [SimpleX](https://simplex.chat/contact#/?v=2-7&smp=smp%3A%2F%2FenEkec4hlR3UtKx2NMpOUK_K4ZuDxjWBO1d9Y4YXVaA%3D%40smp14.simplex.im%2FxhmRbC3StdN7FYRQsu_DRE0Rg4URN2GJ%23%2F%3Fv%3D1-3%26dh%3DMCowBQYDK2VuAyEAmscNw57nTJKJpIZCTOB0xgFNxtdRVdWRQSUamz7mY1w%253D%26srv%3Daspkyu2sopsnizbyfabtsicikr2s4r3ti35jogbcekhm3fsoeyjvgrid.onion). We will look to resolve this promptly.
 
 https://swapmarket.github.io/usdt/
