@@ -30,6 +30,7 @@ body {
     place-items: center;
     min-height: 100vh;
     background: #142840;
+    color: white;
 }
 
 h1 {
