@@ -29,6 +29,7 @@ body {
     display: flex;
     place-items: center;
     min-height: 100vh;
+    background: #142840;
 }
 
 h1 {
