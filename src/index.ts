@@ -133,14 +133,11 @@ void (async () => {
                     ]);
                 }
 
-                // assume exchange rate from min values for quick estimate
-                const assumedFX = info.MinBuyToken / info.MinBuyBTC;
-                balanceBTC = info.MaxBuyToken / assumedFX;
-                balanceToken = info.MaxBuyBTC * assumedFX;
+                balanceBTC = info.MaxSellBTC;
+                balanceToken = info.MaxSellToken;
                 tradeMinBTC = info.MinBuyBTC;
-                // round to $1
                 tradeMinToken = toSats(Math.round(fromSats(info.MinBuyToken)));
-                setTradeLimits(assumedFX);
+                setTradeLimits(info.MinBuyToken / info.MinBuyBTC);
 
                 const withdrawalAddr = getUrlParam("w");
                 if (urlParamIsSet(withdrawalAddr)) {
