@@ -18,6 +18,8 @@ export declare type WalletInfo = {
     Ticker: string; // Bfx ticker
     MaxBuyBTC: number; // trade limit in BTC sats
     MaxBuyToken: number; // trade limit in BTC sats
+    MaxSellBTC: number; // trade limit in BTC sats
+    MaxSellToken: number; // trade limit in BTC sats
     MinBuyBTC: number; // trade limit in BTC sats
     MinBuyToken: number; // trade limit in BTC sats
     FeeRatePPM: number; // traning fee as PPM
