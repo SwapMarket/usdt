@@ -136,8 +136,8 @@ void (async () => {
                 balanceBTC = info.MaxSellBTC;
                 balanceToken = info.MaxSellToken;
                 tradeMinBTC = info.MinBuyBTC;
-                tradeMinToken = info.MinBuyToken;
-                //setTradeLimits(info.MinBuyToken / info.MinBuyBTC);
+                tradeMinToken = toSats(Math.round(fromSats(info.MinBuyToken)));
+                setTradeLimits(info.MinBuyToken / info.MinBuyBTC);
 
                 const withdrawalAddr = getUrlParam("w");
                 if (urlParamIsSet(withdrawalAddr)) {
