@@ -140,7 +140,9 @@ void (async () => {
                 fetchMid(info.Ticker)
                     .then((mid) => {
                         if (!mid) {
-                            log.error("Cannot dial Bitfinex API to fetch mid-price");
+                            log.error(
+                                "Cannot dial Bitfinex API to fetch mid-price",
+                            );
                             mid = info.MinBuyToken / info.MinBuyBTC;
                         }
                         setTradeLimits(mid);
