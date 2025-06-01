@@ -1,6 +1,7 @@
 import log from "loglevel";
 
-const API_URL = "wss://api-pub.bitfinex.com/ws/2";
+const WS_URL = "wss://api-pub.bitfinex.com/ws/2";
+const API_URL = "https://api-pub.bitfinex.com/v2";
 export class BitfinexWS {
     private ws: WebSocket;
     private ticker: string;
@@ -40,7 +41,7 @@ export class BitfinexWS {
 
     // Helper to create a WebSocket with appropriate event handlers
     private createWebSocket(): WebSocket {
-        const ws = new WebSocket(API_URL);
+        const ws = new WebSocket(WS_URL);
         ws.onmessage = (event) => this.handleMessage(event);
         ws.onclose = () => this.handleClose();
         return ws;
@@ -141,5 +142,29 @@ export class BitfinexWS {
     // Handle connection lost by setting the price to null
     private handleConnectionLost() {
         this.onPriceUpdate(null);
+    }
+}
+
+export async function fetchMid(ticker: string): Promise<number | null> {
+    const url = API_URL + "/ticker/" + ticker;
+
+    try {
+        const response = await fetch(url, {
+            method: "GET",
+            headers: {
+                Accept: "application/json",
+            },
+        });
+
+        if (!response.ok) {
+            throw new Error(`HTTP error! Status: ${response.status}`);
+        }
+
+        const data = await response.json();
+        console.info("Ticker data:", data);
+        return data.length > 2 ? (data[0] + data[2]) / 2 : null; // Return the mid price from the ticker data
+    } catch (error) {
+        console.error("Error fetching ticker:", error);
+        return null;
     }
 }
