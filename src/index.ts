@@ -21,7 +21,7 @@ import {
 } from "liquidjs-lib";
 import log from "loglevel";
 
-import { BitfinexWS } from "./bitfinex";
+import { BitfinexWS, fetchMid } from "./bitfinex";
 import { config, setConfig } from "./config";
 import type { UTXO, WalletInfo } from "./consts/Types";
 import "./style.css";
@@ -137,16 +137,27 @@ void (async () => {
                 balanceToken = info.MaxSellToken;
                 tradeMinBTC = info.MinBuyBTC;
                 tradeMinToken = toSats(Math.round(fromSats(info.MinBuyToken)));
-                setTradeLimits(info.MinBuyToken / info.MinBuyBTC);
-
-                const withdrawalAddr = getUrlParam("w");
-                if (urlParamIsSet(withdrawalAddr)) {
-                    if (setWithdrawalAddress(withdrawalAddr)) {
-                        log.info("Withdrawal address provided in URL");
-                    } else {
-                        log.warn("Invalid withdrawal address provided");
-                    }
-                }
+                fetchMid(info.Ticker)
+                    .then((mid) => {
+                        if (!mid) {
+                            log.error(
+                                "Cannot dial Bitfinex API to fetch mid-price",
+                            );
+                            mid = info.MinBuyToken / info.MinBuyBTC;
+                        }
+                        setTradeLimits(mid);
+                        const withdrawalAddr = getUrlParam("w");
+                        if (urlParamIsSet(withdrawalAddr)) {
+                            if (setWithdrawalAddress(withdrawalAddr)) {
+                                log.info("Withdrawal address provided in URL");
+                            } else {
+                                log.warn("Invalid withdrawal address provided");
+                            }
+                        }
+                    })
+                    .catch((err) => {
+                        throw err;
+                    });
             })
             .catch((error) => {
                 log.error("Failed to load wallet info", error);
@@ -175,7 +186,7 @@ void (async () => {
                                     limitsValidated = true;
                                     statusText = `<small>This exchange is running entirely in your browser and has loaded all the data necessary for autonomous operation. Read <a title="Click to read about the app" target="_blank" href="${config.repoUrl}/blob/main/README.md">FAQ</a>`;
                                     if (config.network == "mainnet") {
-                                        statusText += ` and try it on <a target="_blank" href="${config.testnetUrl}">Liquid Testnet</a>`;
+                                        // statusText += ` and try it on <a target="_blank" href="${config.testnetUrl}">Liquid Testnet</a>`;
                                     }
                                     statusText += `.</small>`;
 
