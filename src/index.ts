@@ -186,7 +186,7 @@ void (async () => {
                                     limitsValidated = true;
                                     statusText = `<small>This exchange is running entirely in your browser and has loaded all the data necessary for autonomous operation. Read <a title="Click to read about the app" target="_blank" href="${config.repoUrl}/blob/main/README.md">FAQ</a>`;
                                     if (config.network == "mainnet") {
-                                        statusText += ` and try it on <a target="_blank" href="${config.testnetUrl}">Liquid Testnet</a>`;
+                                        // statusText += ` and try it on <a target="_blank" href="${config.testnetUrl}">Liquid Testnet</a>`;
                                     }
                                     statusText += `.</small>`;
 
