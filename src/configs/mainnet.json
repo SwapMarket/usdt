@@ -1,7 +1,7 @@
 {
     "network": "mainnet",
     "loglevel": "info",
-    "apiUrl": "https://api.swapmarket.online",
+    "apiUrl": "",
     "blockExplorerUrl": "https://blockstream.info/liquid",
     "dustBTC": 500,
     "dustToken": 2000000
