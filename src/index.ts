@@ -62,7 +62,7 @@ let exchangeRate: number | null = null;
 let exchangeRateText = "Connecting...";
 let hasError = false;
 let displayError =
-    "We're experiencing issues loading the necessary information. Please try again later.";
+    "Please email swapmarket.wizard996@passinbox.com if you had a failed swap.";
 let withdrawalPending: boolean = false;
 let withdrawalComplete: boolean = false;
 let broadcastAttempts = 0;
@@ -78,7 +78,7 @@ let explWithdrawalAddress = "";
 let btcChangeAddress = "";
 let tokenChangeAddress = "";
 let lastSeenTxId = "";
-let statusText = "Validating wallet balances, please wait...";
+let statusText = "THIS SERVICE HAS BEEN DISCONTINUED. Please email swapmarket.wizard996@passinbox.com if you had a failed swap.";
 let limitsValidated = false;
 let interval: NodeJS.Timeout;
 let assetIdMap: Map<string, string>;
@@ -183,7 +183,7 @@ void (async () => {
                             // verify wallet balances
                             validateReserves()
                                 .then(() => {
-                                    limitsValidated = true;
+                                    limitsValidated = false;
                                     statusText = `<small>This exchange is running entirely in your browser and has loaded all the data necessary for autonomous operation. Read <a title="Click to read about the app" target="_blank" href="${config.repoUrl}/blob/main/README.md">FAQ</a>`;
                                     if (config.network == "mainnet") {
                                         // statusText += ` and try it on <a target="_blank" href="${config.testnetUrl}">Liquid Testnet</a>`;
@@ -258,7 +258,7 @@ void (async () => {
 
     const ERROR_MESSAGE = () => {
         let t = `<div style="text-align: center;">
-            <h2>Connection Lost!</h2>
+            <h2>THIS SERVICE HAS BEEN DISCONTINUED!</h2>
             <p>${displayError}</p>`;
         if (resumeLink) {
             t += `If you have already sent the deposit, DO NOT reload this page or your funds WILL BE LOST.<br><br>Save <a href="${resumeLink}">this link</a> to resume the swap when you are back online.`;
@@ -1255,8 +1255,7 @@ void (async () => {
         return { token, value };
     }
 
-    // 1. Always spend the new deposit UTXO to signal success
-    // 2. Prioritise smallest UTXOs to consolidate them
+    // Prioritise smallest UTXOs to consolidate them
     function selectUTXOs(
         satsBTC: number,
         satsToken: number,
@@ -1265,29 +1264,15 @@ void (async () => {
         let totalBTC = 0;
         let totalToken = 0;
         let selectedUTXOs: UTXO[] = [];
-        const lastN = walletUTXOs.length - 1;
-
+        
         let leftToAllocateToken = satsToken;
         let leftToAllocateBTC = satsBTC + satsFee;
-
-        if (walletUTXOs[lastN].value > 0) {
-            // add the newly deposited UTXO first
-            selectedUTXOs.push(walletUTXOs[lastN]);
-
-            if (walletUTXOs[lastN].token === "BTC") {
-                leftToAllocateBTC -= walletUTXOs[lastN].value;
-                totalBTC += walletUTXOs[lastN].value;
-            } else {
-                leftToAllocateToken -= walletUTXOs[lastN].value;
-                totalToken += walletUTXOs[lastN].value;
-            }
-        }
 
         // sort BTC by increasing value, exclude the last one
         let btcUTXOs = walletUTXOs
             .filter(
                 (utxo) =>
-                    utxo.token! === "BTC" && utxo.value! > 0 && utxo.N! < lastN,
+                    utxo.token! === "BTC" && utxo.value! > 0,
             )
             .sort((a, b) => (a.value || 0) - (b.value || 0)); // Sort by `value` ascending
 
@@ -1297,8 +1282,7 @@ void (async () => {
                 .filter(
                     (utxo) =>
                         utxo.token! === info.Token &&
-                        utxo.value! > 0 &&
-                        utxo.N! < lastN,
+                        utxo.value! > 0,
                 )
                 .sort((a, b) => (a.value || 0) - (b.value || 0)); // Sort by `value` ascending
 
@@ -1316,8 +1300,7 @@ void (async () => {
                 .filter(
                     (utxo) =>
                         utxo.token! === "BTC" &&
-                        utxo.value! > 0 &&
-                        utxo.N! < lastN,
+                        utxo.value! > 0,
                 ) // Filter by token and ensure `value` is defined
                 .sort((a, b) => (b.value || 0) - (a.value || 0)); // Sort by `value` descending
         }
